@@ -1,0 +1,39 @@
+version: '3.8'
+
+# Development docker-compose configuration
+# Usage: docker-compose -f docker-compose.dev.yml up
+
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: dobby_db_dev
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: dobby_dev
+    volumes:
+      - postgres_dev_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    networks:
+      - dobby_network
+
+  redis:
+    image: redis:7-alpine
+    container_name: dobby_redis_dev
+    command: redis-server --appendonly yes
+    volumes:
+      - redis_dev_data:/data
+    ports:
+      - "6379:6379"
+    networks:
+      - dobby_network
+
+volumes:
+  postgres_dev_data:
+  redis_dev_data:
+
+networks:
+  dobby_network:
+    driver: bridge
+

@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="csrf-token" content={get_csrf_token()} />
+    <.live_title default="Dobby" suffix=" · Phoenix Framework">
+      {assigns[:page_title]}
+    </.live_title>
+    <link phx-track-static rel="stylesheet" href={~p"/assets/css/app.css"} />
+    <link phx-track-static rel="stylesheet" href={~p"/assets/js/app.css"} />
+    <script defer phx-track-static type="text/javascript" src={~p"/assets/js/app.js"}>
+    </script>
+    <script>
+      (() => {
+        const root = document.documentElement;
+        const THEME_KEY = "phx:theme";
+        const mediaQuery = window.matchMedia("(prefers-color-scheme: dark)");
+        const isPublicPage =
+          window.location.pathname.includes("/campaigns/") &&
+          window.location.pathname.includes("/scratch/");
+
+        const toggleDarkClass = (enabled) => {
+          root.classList.toggle("dark", !!enabled);
+        };
+
+        const applyTheme = (theme) => {
+          if (theme === "dark") {
+            root.setAttribute("data-theme", "dark");
+            toggleDarkClass(true);
+            return;
+          }
+
+          if (theme === "light") {
+            root.setAttribute("data-theme", "light");
+            toggleDarkClass(false);
+            return;
+          }
+
+          root.removeAttribute("data-theme");
+          toggleDarkClass(mediaQuery.matches);
+        };
+
+        const setTheme = (theme) => {
+          if (theme === "system") {
+            localStorage.removeItem(THEME_KEY);
+          } else {
+            localStorage.setItem(THEME_KEY, theme);
+          }
+
+          applyTheme(theme);
+        };
+
+        if (isPublicPage) {
+          applyTheme("dark");
+          return;
+        }
+
+        const persistedTheme = localStorage.getItem(THEME_KEY) || "system";
+        applyTheme(persistedTheme);
+
+        const handleStorage = (event) => {
+          if (event.key === THEME_KEY) {
+            applyTheme(event.newValue || "system");
+          }
+        };
+
+        const handleSystemChange = () => {
+          if (!localStorage.getItem(THEME_KEY)) {
+            applyTheme("system");
+          }
+        };
+
+        window.addEventListener("storage", handleStorage);
+        window.addEventListener("phx:set-theme", (event) => {
+          setTheme(event.target.dataset.phxTheme || "system");
+        });
+
+        if (mediaQuery.addEventListener) {
+          mediaQuery.addEventListener("change", handleSystemChange);
+        } else if (mediaQuery.addListener) {
+          mediaQuery.addListener(handleSystemChange);
+        }
+      })();
+    </script>
+  </head>
+  <body class="h-screen overflow-hidden bg-base-100 text-base-content">
+    {@inner_content}
+  </body>
+</html>

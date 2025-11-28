@@ -1,0 +1,446 @@
+/* See the Tailwind configuration guide for advanced usage
+   https://tailwindcss.com/docs/configuration */
+
+@import "tailwindcss" source(none);
+@source "../css";
+@source "../js";
+@source "../../lib/dobby_web";
+
+/* A Tailwind plugin that makes "hero-#{ICON}" classes available.
+   The heroicons installation itself is managed by your mix.exs */
+@plugin "../vendor/heroicons";
+
+/* daisyUI Tailwind Plugin. You can update this file by fetching the latest version with:
+   curl -sLO https://github.com/saadeghi/daisyui/releases/latest/download/daisyui.js
+   Make sure to look at the daisyUI changelog: https://daisyui.com/docs/changelog/ */
+@plugin "../vendor/daisyui" {
+  themes: false;
+}
+
+/* daisyUI theme plugin. You can update this file by fetching the latest version with:
+  curl -sLO https://github.com/saadeghi/daisyui/releases/latest/download/daisyui-theme.js
+  We ship with two themes, a light one inspired on Phoenix colors and a dark one inspired
+  on Elixir colors. Build your own at: https://daisyui.com/theme-generator/ */
+@plugin "../vendor/daisyui-theme" {
+  name: "dark";
+  default: false;
+  prefersdark: true;
+  color-scheme: "dark";
+  --color-base-100: #0f172a;
+  --color-base-200: #1e293b;
+  --color-base-300: #273549;
+  --color-base-content: #e2e8f0;
+  --color-primary: #6366f1;
+  --color-primary-content: #eef2ff;
+  --color-secondary: #a5b4fc;
+  --color-secondary-content: #0f172a;
+  --color-accent: #fb923c;
+  --color-accent-content: #0f172a;
+  --color-neutral: #94a3b8;
+  --color-neutral-content: #0b1120;
+  --color-info: #38bdf8;
+  --color-info-content: #0b1120;
+  --color-success: #34d399;
+  --color-success-content: #052011;
+  --color-warning: #fbbf24;
+  --color-warning-content: #1c1917;
+  --color-error: #fb7185;
+  --color-error-content: #2b1115;
+  --radius-selector: 0.375rem;
+  --radius-field: 0.375rem;
+  --radius-box: 0.75rem;
+  --size-selector: 0.21875rem;
+  --size-field: 0.21875rem;
+  --border: 1.5px;
+  --depth: 1;
+  --noise: 0;
+}
+
+@plugin "../vendor/daisyui-theme" {
+  name: "light";
+  default: true;
+  prefersdark: false;
+  color-scheme: "light";
+  --color-base-100: #f5f5f0;
+  --color-base-200: #ece8e1;
+  --color-base-300: #e1dbd1;
+  --color-base-content: #1f2933;
+  --color-primary: #4c51bf;
+  --color-primary-content: #f8fafc;
+  --color-secondary: #475569;
+  --color-secondary-content: #f1f5f9;
+  --color-accent: #fb923c;
+  --color-accent-content: #1f2937;
+  --color-neutral: #334155;
+  --color-neutral-content: #f8fafc;
+  --color-info: #38bdf8;
+  --color-info-content: #082f49;
+  --color-success: #10b981;
+  --color-success-content: #022c22;
+  --color-warning: #f59e0b;
+  --color-warning-content: #1c1917;
+  --color-error: #f43f5e;
+  --color-error-content: #3f0d16;
+  --radius-selector: 0.375rem;
+  --radius-field: 0.375rem;
+  --radius-box: 0.75rem;
+  --size-selector: 0.21875rem;
+  --size-field: 0.21875rem;
+  --border: 1.5px;
+  --depth: 1;
+  --noise: 0;
+}
+
+/* Add variants based on LiveView classes */
+@custom-variant phx-click-loading (.phx-click-loading&, .phx-click-loading &);
+@custom-variant phx-submit-loading (.phx-submit-loading&, .phx-submit-loading &);
+@custom-variant phx-change-loading (.phx-change-loading&, .phx-change-loading &);
+
+/* Use the data attribute for dark mode  */
+@custom-variant dark (&:where([data-theme=dark], [data-theme=dark] *));
+
+/* Make LiveView wrapper divs transparent for layout */
+[data-phx-session], [data-phx-teleported-src] { display: contents }
+
+/* Custom animations and transitions */
+@keyframes fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes slide-in-right {
+  from {
+    opacity: 0;
+    transform: translateX(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes slide-in-left {
+  from {
+    opacity: 0;
+    transform: translateX(-20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes scale-in {
+  from {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes shimmer {
+  0% {
+    background-position: -1000px 0;
+  }
+  100% {
+    background-position: 1000px 0;
+  }
+}
+
+@keyframes pulse-glow {
+  0%, 100% {
+    opacity: 1;
+    box-shadow: 0 0 0 0 rgba(99, 102, 241, 0.7);
+  }
+  50% {
+    opacity: 0.8;
+    box-shadow: 0 0 0 10px rgba(99, 102, 241, 0);
+  }
+}
+
+/* Animation utility classes */
+.animate-fade-in {
+  animation: fade-in 0.3s ease-out;
+}
+
+.animate-slide-in-right {
+  animation: slide-in-right 0.4s ease-out;
+}
+
+.animate-slide-in-left {
+  animation: slide-in-left 0.4s ease-out;
+}
+
+.animate-scale-in {
+  animation: scale-in 0.3s ease-out;
+}
+
+.animate-shimmer {
+  animation: shimmer 2s infinite linear;
+  background: linear-gradient(
+    to right,
+    #f6f7f8 0%,
+    #edeef1 20%,
+    #f6f7f8 40%,
+    #f6f7f8 100%
+  );
+  background-size: 1000px 100%;
+}
+
+.animate-pulse-glow {
+  animation: pulse-glow 2s infinite;
+}
+
+/* Smooth transitions for interactive elements */
+.transition-smooth {
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.transition-bounce {
+  transition: all 0.3s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+}
+
+/* Hover effects */
+.hover-lift {
+  transition: transform 0.2s ease-out, box-shadow 0.2s ease-out;
+}
+
+.hover-lift:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+}
+
+.hover-glow {
+  transition: box-shadow 0.3s ease-out;
+}
+
+.hover-glow:hover {
+  box-shadow: 0 0 20px rgba(99, 102, 241, 0.3);
+}
+
+/* Skeleton loading states */
+.skeleton {
+  background: linear-gradient(
+    90deg,
+    #f0f0f0 25%,
+    #e0e0e0 50%,
+    #f0f0f0 75%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite;
+}
+
+.skeleton-dark {
+  background: linear-gradient(
+    90deg,
+    #2a2a2a 25%,
+    #1a1a1a 50%,
+    #2a2a2a 75%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite;
+}
+
+/* Responsive improvements */
+@media (max-width: 640px) {
+  .mobile-stack {
+    flex-direction: column;
+  }
+  
+  .mobile-full-width {
+    width: 100%;
+  }
+  
+  .mobile-hide {
+    display: none;
+  }
+}
+
+@media (min-width: 1024px) {
+  .desktop-grid-3 {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+/* Page transition effects */
+.page-enter {
+  animation: fade-in 0.3s ease-out;
+}
+
+/* Card hover effects */
+.card-hover {
+  transition: all 0.3s ease-out;
+}
+
+.card-hover:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+}
+
+/* Button press effect */
+.button-press:active {
+  transform: scale(0.98);
+}
+
+/* Focus ring improvements */
+.focus-ring {
+  transition: all 0.2s ease-out;
+}
+
+.focus-ring:focus {
+  outline: none;
+  ring: 2px;
+  ring-color: rgba(99, 102, 241, 0.5);
+  ring-offset: 2px;
+}
+
+/* Email Studio Preview Styles */
+.email-preview {
+  color: #1f2937;
+  line-height: 1.75;
+}
+
+.email-preview h1,
+.email-preview h2,
+.email-preview h3 {
+  color: #111827;
+  font-weight: 600;
+  margin-top: 1.5em;
+  margin-bottom: 0.75em;
+}
+
+.email-preview p {
+  margin-top: 1em;
+  margin-bottom: 1em;
+}
+
+.email-preview a {
+  color: #4338ca;
+  text-decoration: underline;
+}
+
+.email-preview img {
+  max-width: 100%;
+  height: auto;
+  border-radius: 0.5rem;
+  margin: 1em 0;
+}
+
+.email-preview ul,
+.email-preview ol {
+  margin-top: 1em;
+  margin-bottom: 1em;
+  padding-left: 1.5em;
+}
+
+.email-preview blockquote {
+  border-left: 4px solid #e5e7eb;
+  padding-left: 1em;
+  margin: 1em 0;
+  color: #6b7280;
+}
+
+/* Quill Editor Styles */
+#email-editor-container {
+  position: relative;
+}
+
+#email-editor-container #email-editor {
+  display: block !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+}
+
+#email-editor-container .ql-toolbar {
+  display: block !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+  border-top-left-radius: 0.5rem;
+  border-top-right-radius: 0.5rem;
+  border-bottom: 1px solid #e5e7eb;
+  background: white;
+}
+
+#email-editor-container .ql-container {
+  display: block !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+  border-bottom-left-radius: 0.5rem;
+  border-bottom-right-radius: 0.5rem;
+  font-size: 16px;
+  background: white;
+}
+
+#email-editor-container .ql-editor {
+  display: block !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+  min-height: 300px !important;
+  height: auto !important;
+  padding: 15px !important;
+  background: white !important;
+  overflow: visible !important;
+  position: relative !important;
+}
+
+#email-editor-container .ql-editor[contenteditable="true"] {
+  display: block !important;
+}
+
+#email-editor-container .ql-editor.ql-blank::before {
+  color: #9ca3af;
+  font-style: normal;
+}
+
+/* Quill Editor - Style list item reorder buttons */
+.ql-editor li button[class*="handle"],
+.ql-editor li button[class*="arrow"],
+.ql-editor li [class*="ql-list-item-handle"],
+.ql-editor li button.ql-list-reorder-btn {
+  display: inline-block !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+  cursor: pointer !important;
+  margin: 0 2px !important;
+  padding: 2px 4px !important;
+  border: 1px solid #d1d5db !important;
+  border-radius: 3px !important;
+  background-color: #f9fafb !important;
+  vertical-align: middle !important;
+  transition: background-color 0.2s, border-color 0.2s !important;
+}
+
+.ql-editor li button[class*="handle"]:hover,
+.ql-editor li button[class*="arrow"]:hover,
+.ql-editor li [class*="ql-list-item-handle"]:hover,
+.ql-editor li button.ql-list-reorder-btn:hover {
+  background-color: #e5e7eb !important;
+  border-color: #9ca3af !important;
+}
+
+.ql-editor li svg[class*="arrow"],
+.ql-editor li svg polygon.ql-stroke,
+.ql-editor li button.ql-list-reorder-btn svg {
+  display: inline-block !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+  width: 12px !important;
+  height: 12px !important;
+  vertical-align: middle !important;
+}
+
+.ql-editor li button.ql-list-reorder-btn polygon {
+  fill: #374151 !important;
+  stroke: #374151 !important;
+}
+
+/* This file is for your main application CSS */

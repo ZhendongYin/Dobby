@@ -1,0 +1,58 @@
+# Git files
+.git
+.gitignore
+.gitattributes
+
+# Documentation
+*.md
+README.md
+AGENTS.md
+DEVELOPMENT_PLAN.md
+STYLE_GUIDE.md
+ERROR_HANDLING_IMPROVEMENTS.md
+UI_UX_IMPROVEMENTS.md
+TESTING_EMAIL.md
+
+# Build artifacts
+_build/
+deps/
+cover/
+*.ez
+
+# Mix files
+.mix/
+*.beam
+erl_crash.dump
+
+# Dependencies
+/assets/node_modules/
+/priv/static/assets/
+
+# Environment files
+.env
+.env.*
+!.env.example
+
+# Logs
+*.log
+
+# Test files
+test/
+
+# IDE files
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# User uploaded files
+/priv/static/uploads/
+
+# Temporary files
+/tmp/
+
