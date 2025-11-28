@@ -33,7 +33,8 @@ generate_secret_key() {
 # 初始化环境变量文件
 init_env_file() {
     local secret_key=$(generate_secret_key)
-    local db_password=$(openssl rand -base64 32 | tr -d '\n' | tr -d '=' | cut -c1-32 2>/dev/null || echo "postgres")
+    # 生成只包含字母和数字的密码（URL 安全，避免特殊字符问题）
+    local db_password=$(openssl rand -hex 32 | tr -d '\n' | cut -c1-32 2>/dev/null || echo "postgres")
     
     echo -e "${BLUE}📝 创建 .env 文件...${NC}"
     
@@ -134,7 +135,8 @@ check_and_update_env() {
     # 检查并生成数据库密码（只检查是否是默认值 "postgres" 或空值）
     local current_db_pass=$(grep "^POSTGRES_PASSWORD=" .env 2>/dev/null | cut -d'=' -f2- || echo "")
     if [ -z "$current_db_pass" ] || [ "$current_db_pass" = "postgres" ]; then
-        local db_password=$(openssl rand -base64 32 | tr -d '\n' | tr -d '=' | cut -c1-32 2>/dev/null || echo "postgres_$(openssl rand -hex 8 2>/dev/null || date +%s)")
+        # 生成只包含字母和数字的密码（URL 安全，避免特殊字符问题）
+        local db_password=$(openssl rand -hex 32 | tr -d '\n' | cut -c1-32 2>/dev/null || echo "postgres_$(openssl rand -hex 8 2>/dev/null || date +%s)")
         echo -e "${BLUE}🔑 自动生成数据库密码...${NC}"
         update_env_value "POSTGRES_PASSWORD" "$db_password" "Database Password (自动生成)"
         updated=true
