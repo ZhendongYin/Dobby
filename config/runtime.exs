@@ -66,10 +66,21 @@ if config_env() == :prod do
         String.to_integer(p)
     end
 
+  # In containerized reverse-proxy deployments, public host detection can be
+  # brittle (IP/domain mismatch) and may reject LiveView longpoll/websocket.
+  # Set PHX_CHECK_ORIGIN=true to enforce strict checks again.
+  check_origin =
+    case System.get_env("PHX_CHECK_ORIGIN") do
+      "true" -> true
+      "1" -> true
+      _ -> false
+    end
+
   config :dobby, :dns_cluster_query, System.get_env("DNS_CLUSTER_QUERY")
 
   config :dobby, DobbyWeb.Endpoint,
     url: [host: host, port: public_port, scheme: public_scheme],
+    check_origin: check_origin,
     http: [
       # Enable IPv6 and bind on all interfaces.
       # Set it to  {0, 0, 0, 0, 0, 0, 0, 1} for local network only access.

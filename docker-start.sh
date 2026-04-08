@@ -39,11 +39,37 @@ generate_secret_key() {
     head -c 32 /dev/urandom | base64 | tr -d '\n' | tr -d '=' | cut -c1-64
 }
 
+# 自动探测对外可访问主机（优先公网 IP，失败回退 localhost）
+detect_public_host() {
+    local host=""
+
+    # 尝试公网 IP（需要网络，设置超时避免阻塞）
+    if command -v curl >/dev/null 2>&1; then
+        host=$(curl -fsS --max-time 2 https://checkip.amazonaws.com 2>/dev/null | tr -d '\r\n')
+        if [ -n "$host" ]; then
+            echo "$host"
+            return
+        fi
+    fi
+
+    # 回退：取首个非回环本机 IP
+    if command -v hostname >/dev/null 2>&1; then
+        host=$(hostname -I 2>/dev/null | awk '{print $1}')
+        if [ -n "$host" ]; then
+            echo "$host"
+            return
+        fi
+    fi
+
+    echo "localhost"
+}
+
 # 初始化环境变量文件
 init_env_file() {
     local secret_key=$(generate_secret_key)
     # 生成只包含字母和数字的密码（URL 安全，避免特殊字符问题）
     local db_password=$(openssl rand -hex 32 | tr -d '\n' | cut -c1-32 2>/dev/null || echo "postgres")
+    local detected_host=$(detect_public_host)
     
     echo -e "${BLUE}📝 创建 .env 文件...${NC}"
     
@@ -64,8 +90,9 @@ PORT=4000
 APP_PUBLISH_PORT=4000
 # Nginx 对外 HTTP 端口（http://IP:NGINX_HTTP_PORT 经反代，LiveView 建议主用此入口）
 NGINX_HTTP_PORT=80
-PHX_HOST=localhost
+PHX_HOST=${detected_host}
 PHX_PUBLIC_SCHEME=http
+PHX_PUBLIC_PORT=80
 PHX_SERVER=true
 
 # Secret Key (自动生成)
@@ -159,13 +186,38 @@ check_and_update_env() {
     if [ "$updated" = true ]; then
         echo ""
     fi
+
+    # PHX_PUBLIC_PORT 缺失时默认与 NGINX_HTTP_PORT 保持一致，避免 LiveView Origin 校验失败
+    if ! grep -q "^PHX_PUBLIC_PORT=" .env 2>/dev/null; then
+        local nginx_port=$(grep "^NGINX_HTTP_PORT=" .env 2>/dev/null | cut -d'=' -f2-)
+        if [ -z "$nginx_port" ]; then
+            nginx_port=80
+        fi
+        update_env_value "PHX_PUBLIC_PORT" "$nginx_port" "Public Port（建议与 NGINX_HTTP_PORT 一致）"
+    fi
+
+    # 当 PHX_HOST 仍是 localhost 时，尝试自动替换为可访问地址
+    local current_phx_host
+    current_phx_host=$(grep "^PHX_HOST=" .env 2>/dev/null | cut -d'=' -f2- || echo "")
+    if [ "$current_phx_host" = "localhost" ] || [ -z "$current_phx_host" ]; then
+        local detected_host
+        detected_host=$(detect_public_host)
+        if [ -n "$detected_host" ] && [ "$detected_host" != "localhost" ]; then
+            if [[ "$OSTYPE" == "darwin"* ]]; then
+                sed -i '' "s|^PHX_HOST=.*|PHX_HOST=${detected_host}|" .env
+            else
+                sed -i "s|^PHX_HOST=.*|PHX_HOST=${detected_host}|" .env
+            fi
+            echo -e "${GREEN}✅ PHX_HOST 已更新为 ${detected_host}${NC}"
+        fi
+    fi
 }
 
 # 初始化环境变量（仅在需要时执行，不强制在每次运行都执行）
-# 只有 start、build 或 migrate 命令才需要检查和初始化
+# 只有 start、restart、build 或 migrate 命令才需要检查和初始化
 check_env_needed() {
     case "${1:-start}" in
-        start|build|migrate)
+        start|restart|build|migrate)
             check_and_update_env
             ;;
     esac
