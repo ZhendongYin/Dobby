@@ -19,6 +19,29 @@ defmodule DobbyWeb.Admin.CampaignLive.IndexTest do
       assert render(view) =~ "Spring Launch"
     end
 
+    test "campaign card banner reflects background image and theme color", %{conn: conn, admin: admin} do
+      bg_campaign =
+        campaign_fixture(admin, %{
+          name: "BG Campaign",
+          background_image_url: "https://example.com/bg.png",
+          theme_color: "#10b981"
+        })
+
+      theme_campaign =
+        campaign_fixture(admin, %{
+          name: "Theme Campaign",
+          theme_color: "#ef4444"
+        })
+
+      {:ok, view, _html} = live(conn, ~p"/admin/campaigns")
+      html = render(view)
+
+      assert has_element?(view, "#campaign-card-banner-#{bg_campaign.id}")
+      assert has_element?(view, "#campaign-card-banner-#{theme_campaign.id}")
+      assert html =~ "https://example.com/bg.png"
+      assert html =~ "#ef4444"
+    end
+
     test "filters campaigns via search", %{conn: conn, admin: admin} do
       campaign_fixture(admin, %{name: "Alpha Campaign"})
       campaign_fixture(admin, %{name: "Beta Campaign"})
@@ -394,6 +417,42 @@ defmodule DobbyWeb.Admin.CampaignLive.IndexTest do
       assert html =~ "User 1"
       assert html =~ "User 2"
       assert html =~ "User 3"
+    end
+
+    test "shows pending reveal label for no-prize pending_submit records", %{conn: conn, admin: admin} do
+      campaign = campaign_fixture(admin)
+      no_prize = prize_fixture(campaign, %{"name" => "谢谢参与", "prize_type" => "no_prize"})
+      transaction = transaction_fixture(campaign, %{is_used: true, transaction_number: "TX-NP-1"})
+
+      winning_record_fixture(campaign, no_prize, transaction, %{
+        "name" => "No Prize User",
+        "status" => "pending_submit"
+      })
+
+      {:ok, view, _html} = live(conn, ~p"/admin/campaigns/#{campaign.id}/preview?tab=winners")
+
+      html = render(view)
+      assert html =~ "No Prize User"
+      assert html =~ "待刮開揭曉"
+      refute html =~ "等待得獎者填寫資料"
+    end
+
+    test "shows no-prize fulfilled label instead of shipped wording", %{conn: conn, admin: admin} do
+      campaign = campaign_fixture(admin)
+      no_prize = prize_fixture(campaign, %{"name" => "谢谢参与", "prize_type" => "no_prize"})
+      transaction = transaction_fixture(campaign, %{is_used: true, transaction_number: "TX-NP-2"})
+
+      winning_record_fixture(campaign, no_prize, transaction, %{
+        "name" => "No Prize Fulfilled User",
+        "status" => "fulfilled"
+      })
+
+      {:ok, view, _html} = live(conn, ~p"/admin/campaigns/#{campaign.id}/preview?tab=winners")
+
+      html = render(view)
+      assert html =~ "No Prize Fulfilled User"
+      assert html =~ "已揭曉（未中獎）"
+      refute html =~ "贈品已完成發送"
     end
   end
 

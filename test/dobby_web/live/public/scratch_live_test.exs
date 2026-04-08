@@ -17,9 +17,10 @@ defmodule DobbyWeb.Public.ScratchLiveTest do
   end
 
   describe "scratch flow" do
-    test "renders scratch card and updates progress", %{conn: conn, admin: admin} do
+    test "opens prize modal and filters out no_prize entries", %{conn: conn, admin: admin} do
       campaign = campaign_fixture(admin)
-      prize = prize_fixture(campaign)
+      prize = prize_fixture(campaign, %{name: "Visible Prize"})
+      _no_prize = prize_fixture(campaign, %{prize_type: "no_prize", name: "谢谢参与"})
       transaction = transaction_fixture(campaign, %{is_used: true, is_scratched: false})
       winning_record_fixture(campaign, prize, transaction, %{status: "pending_submit"})
       refute transaction.is_scratched
@@ -28,6 +29,21 @@ defmodule DobbyWeb.Public.ScratchLiveTest do
         live(conn, ~p"/campaigns/#{campaign.id}/scratch/#{transaction.transaction_number}")
 
       assert has_element?(view, "#scratch-card")
+      refute has_element?(view, "#prize-list-modal")
+
+      view
+      |> element("button", "查看奖品列表")
+      |> render_click()
+
+      assert has_element?(view, "#prize-list-modal")
+      assert render(view) =~ "Visible Prize"
+      refute render(view) =~ "谢谢参与"
+
+      view
+      |> element("button[aria-label='关闭奖品列表']")
+      |> render_click()
+
+      refute has_element?(view, "#prize-list-modal")
       assert render(view) =~ "刮开进度"
 
       render_hook(view, "update_progress", %{"progress" => "0.8"})
@@ -46,7 +62,7 @@ defmodule DobbyWeb.Public.ScratchLiveTest do
       {:ok, view, _html} =
         live(conn, ~p"/campaigns/#{campaign.id}/scratch/#{transaction.transaction_number}")
 
-      assert render(view) =~ "券码已使用"
+      assert render(view) =~ "抽獎碼已使用"
       assert render(view) =~ prize.name
     end
 
@@ -63,6 +79,36 @@ defmodule DobbyWeb.Public.ScratchLiveTest do
 
       assert to =~ "invalid-code"
       assert to =~ campaign_a.id
+    end
+
+    test "keeps no-prize code in scratching state before 50% progress", %{conn: conn, admin: admin} do
+      campaign = campaign_fixture(admin)
+      no_prize = prize_fixture(campaign, %{prize_type: "no_prize", name: "谢谢参与"})
+      transaction = transaction_fixture(campaign, %{is_used: true, is_scratched: false})
+      winning_record_fixture(campaign, no_prize, transaction, %{status: "pending_submit"})
+
+      {:ok, view, _html} =
+        live(conn, ~p"/campaigns/#{campaign.id}/scratch/#{transaction.transaction_number}")
+
+      assert has_element?(view, "#scratch-card")
+      refute render(view) =~ "抽獎碼已使用"
+    end
+
+    test "marks no-prize as fulfilled only after scratching past threshold", %{conn: conn, admin: admin} do
+      campaign = campaign_fixture(admin)
+      no_prize = prize_fixture(campaign, %{prize_type: "no_prize", name: "谢谢参与"})
+      transaction = transaction_fixture(campaign, %{is_used: true, is_scratched: false})
+      record = winning_record_fixture(campaign, no_prize, transaction, %{status: "pending_submit"})
+
+      {:ok, view, _html} =
+        live(conn, ~p"/campaigns/#{campaign.id}/scratch/#{transaction.transaction_number}")
+
+      render_hook(view, "update_progress", %{"progress" => "0.8"})
+
+      assert Lottery.get_transaction_number!(transaction.id).is_scratched
+      assert Lottery.get_winning_record!(record.id).status == "fulfilled"
+      assert render(view) =~ "谢谢参与"
+      refute render(view) =~ "惊喜正在送达"
     end
   end
 

@@ -9,6 +9,7 @@ defmodule DobbyWeb.Admin.CampaignLive.Index do
   alias Dobby.Emails
   alias Dobby.Lottery
   alias DobbyWeb.Admin.CampaignLive.PrizeModalComponent
+  import DobbyWeb.Admin.CampaignShellComponents
   alias Decimal
   alias DobbyWeb.LiveViewHelpers
 
@@ -29,6 +30,7 @@ defmodule DobbyWeb.Admin.CampaignLive.Index do
      |> assign(:sort_by, "inserted_at")
      |> assign(:sort_order, "desc")
      |> assign(:campaign, nil)
+     |> assign(:lottery_subscription_topic, nil)
      |> assign(:form, nil)
      |> assign(:active_tab, @default_preview_tab)
      |> assign(:email_template_options, [])
@@ -1028,6 +1030,23 @@ defmodule DobbyWeb.Admin.CampaignLive.Index do
     handle_event("validate", params, socket)
   end
 
+  def handle_info(
+        {:lottery_updated, %{campaign_id: campaign_id}},
+        %{assigns: %{live_action: :preview, campaign: %Campaign{id: campaign_id}}} = socket
+      ) do
+    tab = socket.assigns[:active_tab] || @default_preview_tab
+
+    {:noreply,
+     load_preview(socket, campaign_id, tab,
+       winners_page: socket.assigns[:winning_records_page] || 1,
+       winners_page_size: socket.assigns[:winning_records_page_size] || @winners_preview_limit,
+       winners_sort_by: socket.assigns[:winning_records_sort_by] || "inserted_at",
+       winners_sort_order: socket.assigns[:winning_records_sort_order] || "desc",
+       winner_filter: socket.assigns[:winner_filter] || @default_winner_filter,
+       prize_filter: socket.assigns[:prize_filter] || @default_prize_filter
+     )}
+  end
+
   defp reload_winning_records(socket, winner_filter) do
     campaign = socket.assigns.campaign
     winners_page = socket.assigns[:winning_records_page] || 1
@@ -1173,6 +1192,7 @@ defmodule DobbyWeb.Admin.CampaignLive.Index do
     prize_filter = Keyword.get(opts, :prize_filter, @default_prize_filter)
 
     socket
+    |> maybe_subscribe_lottery_updates(campaign.id)
     |> assign(:page_title, "Preview Campaign - #{campaign.name}")
     |> assign(:campaign, campaign)
     |> assign(:form, nil)
@@ -1194,6 +1214,22 @@ defmodule DobbyWeb.Admin.CampaignLive.Index do
     |> assign(:winner_filter, winner_filter)
     |> assign(:last_refresh_time, DateTime.utc_now())
     |> assign_preview_prize_data(prizes, prize_filter)
+  end
+
+  defp maybe_subscribe_lottery_updates(socket, campaign_id) do
+    topic = Lottery.lottery_updates_topic(campaign_id)
+
+    cond do
+      !connected?(socket) ->
+        socket
+
+      socket.assigns[:lottery_subscription_topic] == topic ->
+        socket
+
+      true ->
+        :ok = Lottery.subscribe_lottery_updates(campaign_id)
+        assign(socket, :lottery_subscription_topic, topic)
+    end
   end
 
   defp assign_preview_prize_data(socket, prizes, filter \\ nil) do
@@ -1797,6 +1833,44 @@ defmodule DobbyWeb.Admin.CampaignLive.Index do
 
   defp ending_soon?(_campaign, _now), do: false
 
+  defp campaign_card_banner_style(campaign) do
+    bg_url = normalized_background_url(campaign)
+    theme = normalized_theme_color(campaign)
+
+    cond do
+      bg_url ->
+        "background-image: linear-gradient(120deg, rgba(15, 23, 42, 0.72), rgba(15, 23, 42, 0.35)), url('#{escape_css_url(bg_url)}'); background-size: cover; background-position: center;"
+
+      theme ->
+        "background: linear-gradient(120deg, #{theme}, rgba(15, 23, 42, 0.82));"
+
+      true ->
+        "background: linear-gradient(120deg, #4f46e5, #7c3aed, #db2777);"
+    end
+  end
+
+  defp normalized_background_url(%{background_image_url: url}) when is_binary(url) do
+    case String.trim(url) do
+      "" -> nil
+      trimmed -> trimmed
+    end
+  end
+
+  defp normalized_background_url(_), do: nil
+
+  defp normalized_theme_color(%{theme_color: color}) when is_binary(color) do
+    case String.trim(color) do
+      "" -> nil
+      trimmed -> trimmed
+    end
+  end
+
+  defp normalized_theme_color(_), do: nil
+
+  defp escape_css_url(url) when is_binary(url) do
+    String.replace(url, "'", "\\'")
+  end
+
   defp alert_badge_class(:warning), do: "bg-amber-100 text-amber-800"
   defp alert_badge_class(:info), do: "bg-indigo-100 text-indigo-800"
   defp alert_badge_class(:neutral), do: "bg-slate-100 text-slate-800"
@@ -1900,163 +1974,24 @@ defmodule DobbyWeb.Admin.CampaignLive.Index do
               return_to={~p"/admin/campaigns"}
             />
           <% @live_action == :preview -> %>
-            <div class="w-full space-y-6">
-              <!-- Header -->
-              <div class="flex flex-wrap items-center justify-end gap-2 mb-8">
-                <.primary_button navigate={~p"/admin/campaigns/#{@campaign.id}/edit"}>
-                  <.icon name="hero-pencil" class="h-4 w-4" /> 編輯活動
-                </.primary_button>
-              </div>
-
-    <!-- Campaign Hero -->
-              <div class="bg-base-100 text-base-content rounded-2xl shadow-lg shadow-primary/10 border border-base-300 overflow-hidden transition-colors">
-                <div class="relative">
-                  <div :if={@campaign.background_image_url} class="h-64 w-full overflow-hidden">
-                    <img
-                      src={@campaign.background_image_url}
-                      alt="Campaign Background"
-                      class="w-full h-full object-cover"
-                    />
-                  </div>
-                  <div
-                    :if={!@campaign.background_image_url}
-                    class="h-64 w-full bg-gradient-to-br from-indigo-500 via-purple-500 to-pink-500 flex items-center justify-center"
-                  >
-                    <div class="text-center text-white">
-                      <.icon name="hero-ticket" class="h-16 w-16 mx-auto mb-4 opacity-50" />
-                      <p class="text-lg font-semibold opacity-75">無背景圖片</p>
-                    </div>
-                  </div>
-                  <div class="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent">
-                  </div>
-                  <div class="absolute inset-0 flex flex-col justify-between p-8 text-white">
-                    <div class="pt-4 space-y-3">
-                      <div class="flex items-center gap-3 flex-wrap">
-                        <span class={[
-                          "inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold",
-                          status_color(@campaign.status)
-                        ]}>
-                          {status_label(@campaign.status)}
-                        </span>
-                        <div class="flex items-center gap-2 rounded-full bg-white/20 backdrop-blur-sm px-3 py-1.5 text-[11px] font-mono text-white/90">
-                          <span class="truncate max-w-[200px]">活动ID: {@campaign.id}</span>
-                          <button
-                            type="button"
-                            id={"campaign-preview-id-copy-#{@campaign.id}"}
-                            phx-hook="CopyToClipboard"
-                            phx-click-bubble="false"
-                            data-copy-text={@campaign.id}
-                            data-copy-success-label="已复制"
-                            aria-label="複製活動 ID"
-                            class="inline-flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full border border-white/30 text-white hover:bg-white/20 transition-colors"
-                          >
-                            <.icon name="hero-document-duplicate" class="h-3.5 w-3.5" />
-                          </button>
-                        </div>
-                      </div>
-                      <h1 class="text-5xl font-black leading-tight">{@campaign.name || "未命名活動"}</h1>
-                    </div>
-                    <div class="pb-4">
-                      <p
-                        :if={@campaign.description}
-                        class="text-xl font-medium text-white/95 max-w-2xl"
-                      >
-                        {@campaign.description}
-                      </p>
-                      <p :if={!@campaign.description} class="text-lg text-white/70 italic">
-                        尚未提供描述
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-    <!-- Tabs Navigation -->
-              <div class="bg-base-100 rounded-2xl shadow-sm border border-base-300 transition-colors">
-                <div class="border-b border-base-200">
-                  <nav class="flex overflow-x-auto" aria-label="Tabs">
-                    <a
-                      href={~p"/admin/campaigns/#{@campaign.id}/preview?#{[tab: "overview"]}"}
-                      class={[
-                        "px-6 py-4 text-sm font-semibold border-b-2 transition-colors whitespace-nowrap",
-                        if(@active_tab == "overview",
-                          do: "border-indigo-500 text-indigo-600",
-                          else:
-                            "border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300"
-                        )
-                      ]}
-                    >
-                      <.icon name="hero-information-circle" class="h-4 w-4 inline mr-2" /> 概覽
-                    </a>
-                    <a
-                      href={~p"/admin/campaigns/#{@campaign.id}/preview?#{[tab: "prizes"]}"}
-                      class={[
-                        "px-6 py-4 text-sm font-semibold border-b-2 transition-colors whitespace-nowrap",
-                        if(@active_tab == "prizes",
-                          do: "border-indigo-500 text-indigo-600",
-                          else:
-                            "border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300"
-                        )
-                      ]}
-                    >
-                      <.icon name="hero-gift" class="h-4 w-4 inline mr-2" /> 獎品管理
-                      <span class="ml-2 px-2 py-0.5 text-xs bg-slate-100 text-slate-600 rounded-full">
-                        {length(@prizes)}
-                      </span>
-                    </a>
-                    <a
-                      href={~p"/admin/campaigns/#{@campaign.id}/transaction-codes"}
-                      class="px-6 py-4 text-sm font-semibold border-b-2 transition-colors whitespace-nowrap border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300"
-                    >
-                      <.icon name="hero-ticket" class="h-4 w-4 inline mr-2" /> 抽獎碼
-                    </a>
-                    <a
-                      href={~p"/admin/campaigns/#{@campaign.id}/preview?#{[tab: "winners"]}"}
-                      class={[
-                        "px-6 py-4 text-sm font-semibold border-b-2 transition-colors whitespace-nowrap",
-                        if(@active_tab == "winners",
-                          do: "border-indigo-500 text-indigo-600",
-                          else:
-                            "border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300"
-                        )
-                      ]}
-                    >
-                      <.icon name="hero-trophy" class="h-4 w-4 inline mr-2" /> 獲獎記錄
-                      <span class="ml-2 px-2 py-0.5 text-xs bg-slate-100 text-slate-600 rounded-full">
-                        {(@winning_summary && @winning_summary["total"]) || 0}
-                      </span>
-                    </a>
-                    <a
-                      href={~p"/admin/campaigns/#{@campaign.id}/preview?#{[tab: "activity"]}"}
-                      class={[
-                        "px-6 py-4 text-sm font-semibold border-b-2 transition-colors whitespace-nowrap",
-                        if(@active_tab == "activity",
-                          do: "border-indigo-500 text-indigo-600",
-                          else:
-                            "border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300"
-                        )
-                      ]}
-                    >
-                      <.icon name="hero-clock" class="h-4 w-4 inline mr-2" /> 活動日誌
-                    </a>
-                  </nav>
-                </div>
-
-    <!-- Tab Content -->
-                <div class="p-6">
-                  <%= cond do %>
-                    <% @active_tab == "overview" -> %>
-                      {render_overview_tab(assigns)}
-                    <% @active_tab == "prizes" -> %>
-                      {render_prizes_tab(assigns)}
-                    <% @active_tab == "winners" -> %>
-                      {render_winners_tab(assigns)}
-                    <% @active_tab == "activity" -> %>
-                      {render_activity_tab(assigns)}
-                  <% end %>
-                </div>
-              </div>
-            </div>
+            <.campaign_shell
+              campaign={@campaign}
+              active_tab={@active_tab}
+              prizes_count={length(@prizes)}
+              winners_count={(@winning_summary && @winning_summary["total"]) || 0}
+              status={@campaign.status}
+            >
+              <%= cond do %>
+                <% @active_tab == "overview" -> %>
+                  {render_overview_tab(assigns)}
+                <% @active_tab == "prizes" -> %>
+                  {render_prizes_tab(assigns)}
+                <% @active_tab == "winners" -> %>
+                  {render_winners_tab(assigns)}
+                <% @active_tab == "activity" -> %>
+                  {render_activity_tab(assigns)}
+              <% end %>
+            </.campaign_shell>
             <.live_component
               module={DobbyWeb.Admin.CampaignLive.PrizeModalComponent}
               id="prize-modal"
@@ -2125,6 +2060,15 @@ defmodule DobbyWeb.Admin.CampaignLive.Index do
                       id={"campaign-card-#{campaign.id}"}
                       class="group relative rounded-3xl border border-base-300 bg-base-100 p-6 shadow-sm transition-all hover:-translate-y-1 hover:shadow-2xl hover:shadow-primary/20"
                     >
+                      <div class="mb-4 overflow-hidden rounded-2xl border border-base-200">
+                        <div
+                          id={"campaign-card-banner-#{campaign.id}"}
+                          class="h-24 w-full"
+                          style={campaign_card_banner_style(campaign)}
+                        >
+                        </div>
+                      </div>
+
                       <div class="flex flex-col gap-2 lg:flex-row lg:items-start lg:justify-between">
                         <div class="flex-1">
                           <p class="text-xs font-semibold uppercase tracking-[0.25em] text-base-content/50">
@@ -2334,18 +2278,6 @@ defmodule DobbyWeb.Admin.CampaignLive.Index do
     do: campaign_id == id
 
   defp preview_loaded?(_, _), do: false
-
-  defp status_color("active"), do: "bg-green-100 text-green-800"
-  defp status_color("draft"), do: "bg-gray-100 text-gray-800"
-  defp status_color("ended"), do: "bg-blue-100 text-blue-800"
-  defp status_color("disabled"), do: "bg-red-100 text-red-800"
-  defp status_color(_), do: "bg-gray-100 text-gray-800"
-
-  defp status_label("active"), do: "Active"
-  defp status_label("draft"), do: "Draft"
-  defp status_label("ended"), do: "Ended"
-  defp status_label("disabled"), do: "Disabled"
-  defp status_label(status), do: String.capitalize(status || "draft")
 
   defp format_date(nil), do: "-"
 
@@ -2792,9 +2724,9 @@ defmodule DobbyWeb.Admin.CampaignLive.Index do
               <td class="px-4 py-4">
                 <span class={[
                   "inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold",
-                  winner_status_color(record.status)
+                  winner_status_color(record)
                 ]}>
-                  {winner_status_label(record.status)}
+                  {winner_status_label(record)}
                 </span>
               </td>
               <td class="px-4 py-4 text-base-content/70">
@@ -3262,7 +3194,7 @@ defmodule DobbyWeb.Admin.CampaignLive.Index do
       record.email || "",
       transaction_number,
       prize_name,
-      winner_status_label(record.status),
+      winner_status_label(record),
       format_date(record.inserted_at)
     ]
   end
@@ -3276,12 +3208,31 @@ defmodule DobbyWeb.Admin.CampaignLive.Index do
 
   defp csv_escape(value), do: csv_escape(to_string(value))
 
+  defp winner_status_color(%{status: "fulfilled", prize: prize} = _record)
+       when not is_nil(prize) do
+    if prize_type(prize) == "no_prize",
+      do: "bg-slate-100 text-slate-800",
+      else: "bg-emerald-100 text-emerald-800"
+  end
+
+  defp winner_status_color(%{status: status}), do: winner_status_color(status)
   defp winner_status_color("fulfilled"), do: "bg-emerald-100 text-emerald-800"
   defp winner_status_color("pending_process"), do: "bg-amber-100 text-amber-800"
   defp winner_status_color("pending_submit"), do: "bg-slate-100 text-slate-800"
   defp winner_status_color("expired"), do: "bg-rose-100 text-rose-800"
   defp winner_status_color(_), do: "bg-gray-100 text-gray-800"
 
+  defp winner_status_label(%{status: "pending_submit", prize: prize} = _record)
+       when not is_nil(prize) do
+    if prize_type(prize) == "no_prize", do: "待刮開揭曉", else: "等待得獎者填寫資料"
+  end
+
+  defp winner_status_label(%{status: "fulfilled", prize: prize} = _record)
+       when not is_nil(prize) do
+    if prize_type(prize) == "no_prize", do: "已揭曉（未中獎）", else: "贈品已完成發送"
+  end
+
+  defp winner_status_label(%{status: status}), do: winner_status_label(status)
   defp winner_status_label("pending_submit"), do: "等待得獎者填寫資料"
   defp winner_status_label("pending_process"), do: "待客服處理 / 寄送"
   defp winner_status_label("fulfilled"), do: "贈品已完成發送"

@@ -73,10 +73,10 @@ defmodule DobbyWeb.Layouts do
     <% end %>
 
     <main class={[
-      @scope == :public && "py-0 min-h-screen",
+      @scope == :public && "py-0 min-h-screen bg-slate-950 text-white",
       @scope != :public &&
         "flex h-full min-h-screen flex-col bg-base-100 text-base-content transition-colors duration-300"
-    ]}>
+    ]} data-theme={if(@scope == :public, do: "dark", else: nil)}>
       <div :if={@scope == :public} class="w-full">
         {render_slot(@inner_block)}
       </div>

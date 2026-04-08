@@ -7,7 +7,7 @@ defmodule DobbyWeb.Public.ScratchLive do
   alias Ecto.NoResultsError
 
   def mount(_params, _session, socket) do
-    {:ok, socket}
+    {:ok, assign(socket, :show_prize_modal, false)}
   end
 
   def handle_params(
@@ -30,6 +30,7 @@ defmodule DobbyWeb.Public.ScratchLive do
         tx_record && tx_record.is_used ->
           winning_record = Lottery.get_winning_record_by_transaction_number(tx_record.id)
           prize = if winning_record, do: Campaigns.get_prize!(winning_record.prize_id), else: nil
+          prizes = campaign_prizes(campaign.id)
 
           # 根据是否已刮开和状态来决定显示什么
           state =
@@ -54,17 +55,23 @@ defmodule DobbyWeb.Public.ScratchLive do
            |> assign(:transaction_code, transaction_number)
            |> assign(:transaction_record, tx_record)
            |> assign(:campaign, campaign)
+           |> assign(:prizes, prizes)
+           |> assign(:show_prize_modal, false)
            |> assign(:winning_record, winning_record)
            |> assign(:prize, prize || default_prize())
            |> assign(:state, state)
            |> assign(:scratch_progress, if(state == :revealed, do: 1.0, else: 0.0))}
 
         true ->
+          prizes = campaign_prizes(campaign.id)
+
           socket =
             socket
             |> assign(:transaction_code, transaction_number)
             |> assign(:transaction_record, tx_record)
             |> assign(:campaign, campaign)
+            |> assign(:prizes, prizes)
+            |> assign(:show_prize_modal, false)
             |> assign(:winning_record, nil)
             |> assign(:prize, default_prize())
             |> assign(:state, :processing)
@@ -120,11 +127,24 @@ defmodule DobbyWeb.Public.ScratchLive do
         {socket.assigns.state, socket.assigns.transaction_record}
       end
 
+    updated_winning_record =
+      if new_state == :revealed and socket.assigns.winning_record && socket.assigns.prize &&
+           prize_type(socket.assigns.prize) == "no_prize" &&
+           socket.assigns.winning_record.status == "pending_submit" do
+        case Lottery.update_winning_record(socket.assigns.winning_record, %{status: "fulfilled"}) do
+          {:ok, winning_record} -> winning_record
+          {:error, _} -> socket.assigns.winning_record
+        end
+      else
+        socket.assigns.winning_record
+      end
+
     {:noreply,
      socket
      |> assign(:scratch_progress, progress_float)
      |> assign(:state, new_state)
-     |> assign(:transaction_record, updated_tx_record)}
+     |> assign(:transaction_record, updated_tx_record)
+     |> assign(:winning_record, updated_winning_record)}
   end
 
   def handle_event("submit_info", _params, socket) do
@@ -134,6 +154,14 @@ defmodule DobbyWeb.Public.ScratchLive do
     else
       {:noreply, socket}
     end
+  end
+
+  def handle_event("open_prize_modal", _params, socket) do
+    {:noreply, assign(socket, :show_prize_modal, true)}
+  end
+
+  def handle_event("close_prize_modal", _params, socket) do
+    {:noreply, assign(socket, :show_prize_modal, false)}
   end
 
   def handle_info(
@@ -249,6 +277,16 @@ defmodule DobbyWeb.Public.ScratchLive do
     "--accent-color: #{accent_color(campaign)};"
   end
 
+  defp campaign_prizes(campaign_id) do
+    Campaigns.list_prizes(campaign_id, %{page: 1, page_size: 200}).items
+  end
+
+  defp visible_prizes(prizes) when is_list(prizes) do
+    Enum.reject(prizes, fn prize -> prize_type(prize) == "no_prize" end)
+  end
+
+  defp visible_prizes(_), do: []
+
   defp accent_color(%{theme_color: color}) when is_binary(color) do
     case String.trim(color) do
       "" -> "#f472b6"
@@ -297,13 +335,14 @@ defmodule DobbyWeb.Public.ScratchLive do
                   {@campaign.description}
                 </p>
               </div>
-              <a
-                href="#scratch-card"
+              <button
+                type="button"
+                phx-click="open_prize_modal"
                 class="inline-flex items-center gap-2 rounded-full px-5 py-2 font-semibold shadow-lg hover:-translate-y-0.5 transition"
                 style="background: var(--accent-color); color: #0f172a;"
               >
                 查看奖品列表 <.icon name="hero-arrow-down" class="h-4 w-4" />
-              </a>
+              </button>
             </div>
             <div class="bg-white/10 border border-white/20 rounded-2xl px-6 py-5 shadow-2xl backdrop-blur">
               <p class="text-xs uppercase tracking-[0.3em] text-white/90 mb-2">当前状态</p>
@@ -406,23 +445,32 @@ defmodule DobbyWeb.Public.ScratchLive do
                   </div>
                 </div>
               <% @state == :revealed -> %>
-                <div class="grid gap-8 lg:grid-cols-2 items-center">
-                  <div class="space-y-6 text-center lg:text-left relative">
-                    <div class="absolute -top-6 -left-4 w-20 h-20 bg-pink-400/20 blur-3xl rounded-full">
-                    </div>
-                    <%= if @prize && @prize.prize_type == "no_prize" do %>
+                <%= if @prize && @prize.prize_type == "no_prize" do %>
+                  <div class="max-w-3xl mx-auto">
+                    <div class="rounded-[28px] border border-white/20 bg-gradient-to-b from-white/10 to-white/5 p-8 sm:p-10 text-center space-y-5">
+                      <div class="mx-auto h-14 w-14 rounded-full bg-white/15 flex items-center justify-center">
+                        <.icon name="hero-face-smile" class="h-8 w-8 text-amber-200" />
+                      </div>
                       <p class="text-4xl font-black text-white drop-shadow-lg">谢谢参与</p>
-                      <p class="text-slate-100">
+                      <p class="text-slate-100 text-lg">
                         {@campaign.no_prize_message || "关注活动，下次好运一定属于你。"}
                       </p>
-                      <button
-                        class="inline-flex items-center gap-2 rounded-full border border-white/30 px-5 py-2 text-white/95 hover:bg-white/10 transition"
-                        phx-click="refresh_preview"
-                        disabled
-                      >
-                        <.icon name="hero-arrow-path" class="h-4 w-4" /> 稍后再试
-                      </button>
-                    <% else %>
+                      <div class="pt-2 flex flex-col sm:flex-row items-center justify-center gap-3">
+                        <button
+                          type="button"
+                          phx-click="open_prize_modal"
+                          class="inline-flex items-center gap-2 rounded-full bg-white text-slate-900 px-6 py-3 font-semibold shadow-lg hover:-translate-y-0.5 transition"
+                        >
+                          查看奖品列表 <.icon name="hero-gift" class="h-4 w-4" />
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                <% else %>
+                  <div class="grid gap-8 lg:grid-cols-2 items-center">
+                    <div class="space-y-6 text-center lg:text-left relative">
+                      <div class="absolute -top-6 -left-4 w-20 h-20 bg-pink-400/20 blur-3xl rounded-full">
+                      </div>
                       <div class="space-y-3">
                         <p class="text-4xl font-black text-transparent bg-clip-text bg-gradient-to-r from-amber-300 via-rose-300 to-fuchsia-400 drop-shadow-xl">
                           🎉 恭喜中奖！
@@ -446,29 +494,29 @@ defmodule DobbyWeb.Public.ScratchLive do
                           保存截图
                         </button>
                       </div>
-                    <% end %>
-                  </div>
-                  <div class="relative">
-                    <div
-                      class="absolute inset-0 pointer-events-none"
-                      style="background-image: radial-gradient(circle at 20% 20%, rgba(248,113,113,0.2), transparent 40%), radial-gradient(circle at 80% 0%, rgba(129,140,248,0.2), transparent 45%), radial-gradient(circle at 50% 100%, rgba(52,211,153,0.2), transparent 35%);"
-                    >
                     </div>
-                    <img
-                      :if={@prize && @prize.image_url}
-                      src={@prize.image_url}
-                      alt={@prize.name}
-                      class="relative w-full rounded-[32px] border border-white/25 shadow-[0_25px_120px_rgba(0,0,0,.45)] object-cover"
-                    />
-                    <div
-                      :if={!@prize || !@prize.image_url}
-                      class="relative w-full h-64 rounded-[32px] border border-dashed border-white/30 flex flex-col items-center justify-center gap-2"
-                    >
-                      <.icon name="hero-gift" class="h-10 w-10 text-white/90" />
-                      <span class="text-white/95">惊喜正在送达</span>
+                    <div class="relative">
+                      <div
+                        class="absolute inset-0 pointer-events-none"
+                        style="background-image: radial-gradient(circle at 20% 20%, rgba(248,113,113,0.2), transparent 40%), radial-gradient(circle at 80% 0%, rgba(129,140,248,0.2), transparent 45%), radial-gradient(circle at 50% 100%, rgba(52,211,153,0.2), transparent 35%);"
+                      >
+                      </div>
+                      <img
+                        :if={@prize && @prize.image_url}
+                        src={@prize.image_url}
+                        alt={@prize.name}
+                        class="relative w-full rounded-[32px] border border-white/25 shadow-[0_25px_120px_rgba(0,0,0,.45)] object-cover"
+                      />
+                      <div
+                        :if={!@prize || !@prize.image_url}
+                        class="relative w-full h-64 rounded-[32px] border border-dashed border-white/30 flex flex-col items-center justify-center gap-2"
+                      >
+                        <.icon name="hero-gift" class="h-10 w-10 text-white/90" />
+                        <span class="text-white/95">奖品信息加载中</span>
+                      </div>
                     </div>
                   </div>
-                </div>
+                <% end %>
               <% @state == :already_used -> %>
                 <div class="text-center space-y-6">
                   <div class="inline-flex items-center gap-2 rounded-full bg-white/10 text-amber-200 px-4 py-1.5 text-sm">
@@ -502,6 +550,72 @@ defmodule DobbyWeb.Public.ScratchLive do
                 </div>
             <% end %>
           </div>
+
+          <%= if @show_prize_modal do %>
+            <div
+              id="prize-list-modal"
+              class="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6"
+              role="dialog"
+              aria-modal="true"
+              aria-label="奖品列表"
+            >
+              <div
+                class="absolute inset-0 bg-black/70 backdrop-blur-sm"
+                phx-click="close_prize_modal"
+              >
+              </div>
+
+              <section class="relative w-full max-w-4xl bg-slate-900/95 border border-white/20 rounded-[28px] shadow-2xl p-6 sm:p-8">
+                <div class="flex items-center justify-between gap-3 mb-5">
+                  <h2 class="text-2xl font-black text-white tracking-tight">奖品列表</h2>
+                  <div class="flex items-center gap-2">
+                    <span class="text-xs rounded-full px-3 py-1 bg-white/15 text-white/90">
+                      共 {length(visible_prizes(@prizes))} 项
+                    </span>
+                    <button
+                      type="button"
+                      phx-click="close_prize_modal"
+                      class="inline-flex items-center justify-center rounded-full border border-white/30 text-white h-8 w-8 hover:bg-white/10 transition"
+                      aria-label="关闭奖品列表"
+                    >
+                      <.icon name="hero-x-mark" class="h-4 w-4" />
+                    </button>
+                  </div>
+                </div>
+
+                <%= if Enum.empty?(visible_prizes(@prizes)) do %>
+                  <p class="text-white/85">本活动暂未配置可展示奖品。</p>
+                <% else %>
+                  <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 max-h-[60vh] overflow-y-auto pr-1">
+                    <article
+                      :for={prize <- visible_prizes(@prizes)}
+                      class="rounded-2xl border border-white/20 bg-black/20 overflow-hidden"
+                    >
+                      <div class="h-36 w-full bg-white/5">
+                        <img
+                          :if={prize_image_url(prize)}
+                          src={prize_image_url(prize)}
+                          alt={prize_name(prize) || "Prize image"}
+                          class="h-full w-full object-cover"
+                        />
+                      </div>
+                      <div class="p-4 space-y-2">
+                        <div class="flex items-center justify-between gap-2">
+                          <p class="font-semibold text-white truncate">{prize_name(prize) || "未命名奖品"}</p>
+                          <span
+                            class="shrink-0 text-[11px] rounded-full px-2 py-0.5 border border-white/20 text-white/85"
+                          >
+                            {prize_type(prize) || "-"}
+                          </span>
+                        </div>
+                        <p class="text-sm text-white/75 line-clamp-2">{prize.description || "敬请期待。"}</p>
+                      </div>
+                    </article>
+                  </div>
+                <% end %>
+              </section>
+            </div>
+          <% end %>
         </div>
       </div>
     </Layouts.app>
