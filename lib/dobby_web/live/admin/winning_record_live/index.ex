@@ -31,7 +31,9 @@ defmodule DobbyWeb.Admin.WinningRecordLive.Index do
      |> assign(:selected_record, nil)
      |> assign(:show_modal?, false)
      |> assign(:selected_ids, MapSet.new())
+     |> assign(:lottery_subscription_topic, nil)
      |> assign(:page_title, "#{campaign.name} · Winning Records")
+     |> maybe_subscribe_lottery_updates(campaign.id)
      |> load_records()}
   end
 
@@ -261,6 +263,14 @@ defmodule DobbyWeb.Admin.WinningRecordLive.Index do
        content: csv,
        content_type: "text/csv"
      })}
+  end
+
+  @impl true
+  def handle_info(
+        {:lottery_updated, %{campaign_id: campaign_id}},
+        %{assigns: %{campaign: %{id: campaign_id}}} = socket
+      ) do
+    {:noreply, load_records(socket)}
   end
 
   @impl true
@@ -550,6 +560,22 @@ defmodule DobbyWeb.Admin.WinningRecordLive.Index do
     |> assign(:records_total, result.total)
     |> assign(:records_page, result.page)
     |> assign(:records_page_size, result.page_size)
+  end
+
+  defp maybe_subscribe_lottery_updates(socket, campaign_id) do
+    topic = Lottery.lottery_updates_topic(campaign_id)
+
+    cond do
+      !connected?(socket) ->
+        socket
+
+      socket.assigns[:lottery_subscription_topic] == topic ->
+        socket
+
+      true ->
+        :ok = Lottery.subscribe_lottery_updates(campaign_id)
+        assign(socket, :lottery_subscription_topic, topic)
+    end
   end
 
   defp list_records(campaign_id, params) do

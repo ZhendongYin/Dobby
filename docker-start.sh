@@ -1,5 +1,5 @@
 #!/bin/bash
-# Docker 启动脚本：一条命令完成构建、启动、迁移与全套种子数据
+# Docker 启动脚本：一条命令完成构建、启动、迁移与演示数据初始化
 
 set -e
 
@@ -289,9 +289,9 @@ case "${1:-start}" in
     echo -e "${BLUE}⏳ 等待应用启动（迁移会自动运行）...${NC}"
     sleep 10
     
-    # 等待应用完全启动后再运行种子数据
+    # 等待应用完全启动后再运行演示数据初始化
     echo ""
-    echo -e "${GREEN}🌱 补跑数据库种子（web 容器启动时已跑过一遍；此处幂等补全）...${NC}"
+    echo -e "${GREEN}🌱 补跑数据库演示数据（web 容器启动时已跑过一遍；此处幂等补全）...${NC}"
     echo -e "${YELLOW}提示: 可通过环境变量 ADMIN_PASSWORD 设置管理员密码${NC}"
     echo -e "${BLUE}   等待应用就绪...${NC}"
     max_attempts=20
@@ -312,13 +312,13 @@ case "${1:-start}" in
       echo ""
       
       if [ -n "$ADMIN_PASSWORD" ]; then
-        dc exec -T -e ADMIN_PASSWORD="$ADMIN_PASSWORD" web ./bin/dobby eval "Dobby.Release.seed()" 2>&1 || echo -e "${YELLOW}   ⚠️  种子已应用或部分跳过（可忽略）${NC}"
+        dc exec -T -e ADMIN_PASSWORD="$ADMIN_PASSWORD" web ./bin/dobby eval "Dobby.Release.seed()" 2>&1 || echo -e "${YELLOW}   ⚠️  演示数据已应用或部分跳过（可忽略）${NC}"
       else
-        dc exec -T web ./bin/dobby eval "Dobby.Release.seed()" 2>&1 || echo -e "${YELLOW}   ⚠️  种子已应用或部分跳过（可忽略）${NC}"
+        dc exec -T web ./bin/dobby eval "Dobby.Release.seed()" 2>&1 || echo -e "${YELLOW}   ⚠️  演示数据已应用或部分跳过（可忽略）${NC}"
       fi
     else
       echo ""
-      echo -e "${YELLOW}⚠️  应用启动较慢，种子数据将在后台运行${NC}"
+      echo -e "${YELLOW}⚠️  应用启动较慢，演示数据初始化将在后台运行${NC}"
       echo -e "${YELLOW}   可以稍后手动运行: ./docker-start.sh seed${NC}"
     fi
     
@@ -343,7 +343,7 @@ case "${1:-start}" in
     echo -e "${BLUE}📋 常用命令：${NC}"
     echo -e "   查看日志: ${GREEN}./docker-start.sh logs${NC}"
     echo -e "   停止服务: ${GREEN}./docker-start.sh stop${NC}"
-    echo -e "   运行种子数据: ${GREEN}./docker-start.sh seed${NC}"
+    echo -e "   运行演示数据: ${GREEN}./docker-start.sh seed${NC}"
     echo ""
     echo -e "${BLUE}📋 查看实时日志：${NC}"
     echo -e "${YELLOW}按 Ctrl+C 退出日志查看${NC}"
@@ -389,7 +389,7 @@ case "${1:-start}" in
     ;;
     
   seed)
-    echo -e "${GREEN}🌱 运行数据库种子数据（管理员、奖品模板、邮件模板、示範活動）...${NC}"
+    echo -e "${GREEN}🌱 运行数据库演示数据（管理员、奖品模板、邮件模板、活动）...${NC}"
     echo -e "${YELLOW}提示: 可通过环境变量 ADMIN_PASSWORD 设置管理员密码${NC}"
     if [ -n "$ADMIN_PASSWORD" ]; then
       dc exec -e ADMIN_PASSWORD="$ADMIN_PASSWORD" web ./bin/dobby eval "Dobby.Release.seed()"
@@ -417,14 +417,14 @@ case "${1:-start}" in
     echo "用法: $0 {start|stop|restart|logs|build|clean|migrate|seed|shell|env}"
     echo ""
     echo "命令:"
-    echo "  start    - 一键：构建、启动、迁移、全套种子（管理員/獎品/郵件模板/示範活動）(默认)"
+    echo "  start    - 一键：构建、启动、迁移、全套演示数据（管理員/獎品/郵件模板/活動）(默认)"
     echo "  stop     - 停止所有服务"
     echo "  restart  - 重启所有服务"
     echo "  logs     - 查看日志 (可以指定服务名，如: logs db)"
     echo "  build    - 重新构建镜像"
     echo "  clean    - 停止服务并删除数据卷"
     echo "  migrate  - 运行数据库迁移"
-    echo "  seed     - 幂等种子：管理員、獎品模板、郵件模板、示範活動（30 天）"
+    echo "  seed     - 幂等演示数据：管理員、獎品模板、郵件模板、活動/獎品（30 天）"
     echo "  shell    - 进入应用容器"
     echo "  env      - 显示当前环境变量配置（敏感信息已隐藏）"
     exit 1

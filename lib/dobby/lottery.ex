@@ -8,6 +8,9 @@ defmodule Dobby.Lottery do
   alias Dobby.Lottery.TransactionNumber
   alias Dobby.Lottery.WinningRecord
   alias Dobby.Context.Helpers
+  alias Phoenix.PubSub
+
+  @lottery_updates_topic_prefix "lottery_updates:campaign:"
 
   # TransactionNumber functions
 
@@ -39,6 +42,17 @@ defmodule Dobby.Lottery do
     transaction_number
     |> TransactionNumber.changeset(attrs)
     |> Repo.update()
+    |> case do
+      {:ok, updated_transaction_number} = ok ->
+        broadcast_lottery_update(updated_transaction_number.campaign_id, :transaction_number_updated, %{
+          transaction_number_id: updated_transaction_number.id
+        })
+
+        ok
+
+      error ->
+        error
+    end
   end
 
   @doc """
@@ -180,6 +194,17 @@ defmodule Dobby.Lottery do
     winning_record
     |> WinningRecord.changeset(attrs)
     |> Repo.update()
+    |> case do
+      {:ok, updated_winning_record} = ok ->
+        broadcast_lottery_update(updated_winning_record.campaign_id, :winning_record_updated, %{
+          winning_record_id: updated_winning_record.id
+        })
+
+        ok
+
+      error ->
+        error
+    end
   end
 
   @doc """
@@ -366,6 +391,18 @@ defmodule Dobby.Lottery do
     record
     |> WinningRecord.changeset(%{"status" => status})
     |> Repo.update()
+    |> case do
+      {:ok, updated_record} = ok ->
+        broadcast_lottery_update(updated_record.campaign_id, :winning_record_status_updated, %{
+          winning_record_id: updated_record.id,
+          status: updated_record.status
+        })
+
+        ok
+
+      error ->
+        error
+    end
   end
 
   @doc """
@@ -494,9 +531,32 @@ defmodule Dobby.Lottery do
                end
            end
          end) do
-      {:ok, result} -> {:ok, result}
+      {:ok, result} ->
+        broadcast_lottery_update(campaign_id, :draw_recorded, %{
+          transaction_number_id: result.transaction_number.id,
+          winning_record_id: result.winning_record.id
+        })
+
+        {:ok, result}
+
       {:error, reason} -> {:error, reason}
     end
+  end
+
+  def lottery_updates_topic(campaign_id), do: @lottery_updates_topic_prefix <> to_string(campaign_id)
+
+  def subscribe_lottery_updates(campaign_id) do
+    PubSub.subscribe(Dobby.PubSub, lottery_updates_topic(campaign_id))
+  end
+
+  defp broadcast_lottery_update(campaign_id, event, payload) do
+    message =
+      {:lottery_updated,
+       payload
+       |> Map.put(:campaign_id, campaign_id)
+       |> Map.put(:event, event)}
+
+    PubSub.broadcast(Dobby.PubSub, lottery_updates_topic(campaign_id), message)
   end
 
   defp get_draw_count(campaign_id) do
@@ -514,14 +574,13 @@ defmodule Dobby.Lottery do
     # 标记交易码为已使用
     mark_transaction_used(tx_number, ip_address, user_agent)
 
-    # 创建中奖记录（无奖品）- 直接标记为已完成，因为不需要用户提交信息
+    # 创建中奖记录（无奖品）- 先保持待揭晓，等用户刮开后再标记完成
     winning_record =
       create_winning_record(%{
         "transaction_number_id" => tx_number.id,
         "prize_id" => no_prize.id,
         "campaign_id" => campaign.id,
-        # 改为 fulfilled
-        "status" => "fulfilled"
+        "status" => "pending_submit"
       })
       |> case do
         {:ok, record} ->

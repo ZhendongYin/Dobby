@@ -4,13 +4,15 @@ defmodule DobbyWeb.Admin.TransactionCodeLive.Index do
   alias Dobby.Campaigns
   alias Dobby.Lottery
   alias DobbyWeb.LiveViewHelpers
+  import DobbyWeb.Admin.CampaignShellComponents
 
   @impl true
   def mount(_params, _session, socket) do
     {:ok,
      socket
      |> assign(:qr_modal_open, false)
-     |> assign(:qr_target_code, nil)}
+     |> assign(:qr_target_code, nil)
+     |> assign(:lottery_subscription_topic, nil)}
   end
 
   @impl true
@@ -37,15 +39,21 @@ defmodule DobbyWeb.Admin.TransactionCodeLive.Index do
         search: search
       })
 
+    prizes_count = Campaigns.list_prizes(campaign.id, %{page: 1, page_size: 1}).total
+    winning_summary = Lottery.winning_record_summary(campaign.id)
+
     socket
     |> assign(:page_title, "抽獎碼 · #{campaign.name}")
     |> assign(:campaign, campaign)
+    |> assign(:prizes_count, prizes_count)
+    |> assign(:winning_summary, winning_summary)
     |> assign(:page, page)
     |> assign(:page_size, page_size)
     |> assign(:search, search)
     |> assign(:codes, result.items)
     |> assign(:codes_total, result.total)
     |> assign(:codes_total_pages, result.total_pages)
+    |> maybe_subscribe_lottery_updates(campaign.id)
   end
 
   @impl true
@@ -123,6 +131,14 @@ defmodule DobbyWeb.Admin.TransactionCodeLive.Index do
      |> assign(:qr_target_code, nil)}
   end
 
+  @impl true
+  def handle_info(
+        {:lottery_updated, %{campaign_id: campaign_id}},
+        %{assigns: %{campaign: %{id: campaign_id}}} = socket
+      ) do
+    {:noreply, reload_codes(socket)}
+  end
+
   defp current_path(socket, overrides) do
     c = socket.assigns.campaign
 
@@ -167,144 +183,190 @@ defmodule DobbyWeb.Admin.TransactionCodeLive.Index do
     "https://quickchart.io/qr?size=260&text=#{URI.encode_www_form(url)}"
   end
 
+  defp reload_codes(socket) do
+    campaign = socket.assigns.campaign
+
+    result =
+      Lottery.list_transaction_numbers(campaign.id, %{
+        page: socket.assigns.page,
+        page_size: socket.assigns.page_size,
+        search: socket.assigns.search
+      })
+
+    winning_summary = Lottery.winning_record_summary(campaign.id)
+
+    socket
+    |> assign(:codes, result.items)
+    |> assign(:codes_total, result.total)
+    |> assign(:codes_total_pages, result.total_pages)
+    |> assign(:winning_summary, winning_summary)
+  end
+
+  defp maybe_subscribe_lottery_updates(socket, campaign_id) do
+    topic = Lottery.lottery_updates_topic(campaign_id)
+
+    cond do
+      !connected?(socket) ->
+        socket
+
+      socket.assigns[:lottery_subscription_topic] == topic ->
+        socket
+
+      true ->
+        :ok = Lottery.subscribe_lottery_updates(campaign_id)
+        assign(socket, :lottery_subscription_topic, topic)
+    end
+  end
+
   @impl true
   def render(assigns) do
     ~H"""
     <Layouts.app flash={@flash} current_scope={%{scope: :admin, current_nav: :campaigns}}>
       <.page_container>
-        <div class="max-w-5xl mx-auto space-y-8">
-          <div class="flex flex-wrap items-center justify-between gap-4">
-            <div>
-              <p class="text-xs uppercase tracking-widest text-base-content/50">Campaign</p>
-              <h1 class="text-2xl font-bold text-base-content mt-1">抽獎碼管理</h1>
-              <p class="text-sm text-base-content/60 mt-1">{@campaign.name}</p>
-            </div>
-            <div class="flex flex-wrap gap-2">
-              <.link
-                navigate={~p"/admin/campaigns/#{@campaign.id}/preview"}
-                class="btn btn-ghost btn-sm"
-              >
-                返回活動
-              </.link>
-              <.link navigate={~p"/admin/campaigns/#{@campaign.id}/edit"} class="btn btn-outline btn-sm">
-                編輯設定
-              </.link>
-            </div>
-          </div>
+        <.campaign_shell
+          campaign={@campaign}
+          active_tab="codes"
+          prizes_count={@prizes_count}
+          winners_count={(@winning_summary && @winning_summary["total"]) || 0}
+          status={@campaign.status}
+        >
+          <div class="space-y-6">
+              <div class="flex flex-wrap items-center justify-between gap-3">
+                <div>
+                <h2 class="text-2xl font-bold text-base-content">抽獎碼管理</h2>
+                <p class="text-sm text-base-content/60 mt-1">
+                  管理活動抽獎碼，支持手動新增、批量匯入與 QR 檢視。
+                </p>
+                </div>
+                <.secondary_button phx-click="go_to_page" phx-value-page="1" size="sm">
+                  <.icon name="hero-arrow-path" class="h-4 w-4" /> 重新整理
+                </.secondary_button>
+              </div>
 
-          <div class="rounded-2xl border border-base-300 bg-base-100 p-6 space-y-4">
-            <div class="flex items-start gap-3">
-              <.icon name="hero-information-circle" class="h-5 w-5 text-primary flex-shrink-0 mt-0.5" />
-              <div class="text-sm text-base-content/70 space-y-1">
-                <p :if={@campaign.require_preimported_codes}>
-                  此活動已設定為 <span class="font-semibold text-base-content">僅允許已新增的抽獎碼</span>
-                  參與抽獎。未在列表中的抽獎碼將無法開獎。
-                </p>
-                <p :if={!@campaign.require_preimported_codes}>
-                  此活動<strong class="text-base-content">未</strong>限制抽獎碼須預先匯入；未列於此處的抽獎碼仍可能在通過外部驗證後自動建立。
-                </p>
+              <div class="rounded-2xl border border-base-300 bg-base-100 p-6 space-y-4">
+                <div class="flex items-start gap-3">
+                  <.icon
+                    name="hero-information-circle"
+                    class="h-5 w-5 text-primary flex-shrink-0 mt-0.5"
+                  />
+                  <div class="text-sm text-base-content/70 space-y-1">
+                    <p :if={@campaign.require_preimported_codes}>
+                      此活動已設定為 <span class="font-semibold text-base-content">僅允許已新增的抽獎碼</span>
+                      參與抽獎。未在列表中的抽獎碼將無法開獎。
+                    </p>
+                    <p :if={!@campaign.require_preimported_codes}>
+                      此活動<strong class="text-base-content">未</strong>限制抽獎碼須預先匯入；未列於此處的抽獎碼仍可能在通過外部驗證後自動建立。
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              <div class="grid gap-6 lg:grid-cols-2">
+                <div class="rounded-2xl border border-base-300 bg-base-100 p-6 space-y-4">
+                  <h2 class="font-semibold text-base-content">手動新增</h2>
+                  <form phx-submit="add_one" class="space-y-3">
+                    <input
+                      type="text"
+                      name="code"
+                      placeholder="輸入一組抽獎碼"
+                      class="input input-bordered w-full"
+                      autocomplete="off"
+                    />
+                    <.primary_button type="submit" size="sm">
+                      <.icon name="hero-plus" class="h-4 w-4" /> 新增
+                    </.primary_button>
+                  </form>
+                </div>
+
+                <div class="rounded-2xl border border-base-300 bg-base-100 p-6 space-y-4">
+                  <h2 class="font-semibold text-base-content">批量匯入</h2>
+                  <p class="text-xs text-base-content/60">
+                    每行一組，或以逗號分隔。重複（含他活動已使用）將自動略過。
+                  </p>
+                  <form phx-submit="import_codes" class="space-y-3">
+                    <textarea
+                      name="text"
+                      rows="6"
+                      placeholder="CODE001&#10;CODE002"
+                      class="textarea textarea-bordered w-full font-mono text-sm"
+                    ></textarea>
+                    <.primary_button type="submit" size="sm">
+                      <.icon name="hero-arrow-up-tray" class="h-4 w-4" /> 匯入
+                    </.primary_button>
+                  </form>
+                </div>
+              </div>
+
+              <div class="rounded-2xl border border-base-300 bg-base-100 p-6 space-y-4">
+                <div class="flex flex-wrap items-center justify-between gap-3">
+                  <h2 class="font-semibold text-base-content">抽獎碼列表（共 {@codes_total} 筆）</h2>
+                  <form phx-change="search_change" id="tx-code-search" class="w-full sm:w-auto">
+                    <input
+                      type="search"
+                      name="search"
+                      value={@search}
+                      phx-debounce="300"
+                      placeholder="搜尋抽獎碼…"
+                      class="input input-bordered input-sm w-full sm:w-48"
+                    />
+                  </form>
+                </div>
+
+                <div class="overflow-x-auto">
+                  <table class="table table-sm">
+                    <thead>
+                      <tr>
+                        <th>抽獎碼</th>
+                        <th>狀態</th>
+                        <th>建立時間</th>
+                        <th class="text-right">操作</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr :for={row <- @codes} id={"tx-#{row.id}"}>
+                        <td class="font-mono text-sm">{row.transaction_number}</td>
+                        <td>
+                          <%= if row.is_used do %>
+                            <span class="badge badge-warning badge-sm">已使用</span>
+                          <% else %>
+                            <span class="badge badge-success badge-sm">未使用</span>
+                          <% end %>
+                        </td>
+                        <td class="text-xs text-base-content/60">
+                          {Calendar.strftime(row.inserted_at, "%Y-%m-%d %H:%M")}
+                        </td>
+                        <td class="text-right">
+                          <.secondary_button
+                            type="button"
+                            phx-click="show_qr"
+                            phx-value-code={row.transaction_number}
+                            size="sm"
+                            class="!px-3 !py-1.5 !text-xs"
+                          >
+                            <.icon name="hero-qr-code" class="h-3.5 w-3.5" /> QR Code
+                          </.secondary_button>
+                        </td>
+                      </tr>
+                      <tr :if={Enum.empty?(@codes)}>
+                        <td colspan="4" class="text-center text-base-content/50 py-8">
+                          尚無抽獎碼，請先新增或匯入。
+                        </td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+
+                <.pagination
+                  :if={@codes_total > 0}
+                  page={@page}
+                  page_size={@page_size}
+                  total={@codes_total}
+                  path={~p"/admin/campaigns/#{@campaign.id}/transaction-codes"}
+                  params={%{"search" => @search}}
+                />
               </div>
             </div>
-          </div>
-
-          <div class="grid gap-6 lg:grid-cols-2">
-            <div class="rounded-2xl border border-base-300 bg-base-100 p-6 space-y-4">
-              <h2 class="font-semibold text-base-content">手動新增</h2>
-              <form phx-submit="add_one" class="space-y-3">
-                <input
-                  type="text"
-                  name="code"
-                  placeholder="輸入一組抽獎碼"
-                  class="input input-bordered w-full"
-                  autocomplete="off"
-                />
-                <button type="submit" class="btn btn-primary btn-sm">新增</button>
-              </form>
-            </div>
-
-            <div class="rounded-2xl border border-base-300 bg-base-100 p-6 space-y-4">
-              <h2 class="font-semibold text-base-content">批量匯入</h2>
-              <p class="text-xs text-base-content/60">每行一組，或以逗號分隔。重複（含他活動已使用）將自動略過。</p>
-              <form phx-submit="import_codes" class="space-y-3">
-                <textarea
-                  name="text"
-                  rows="6"
-                  placeholder="CODE001&#10;CODE002"
-                  class="textarea textarea-bordered w-full font-mono text-sm"
-                ></textarea>
-                <button type="submit" class="btn btn-primary btn-sm">匯入</button>
-              </form>
-            </div>
-          </div>
-
-          <div class="rounded-2xl border border-base-300 bg-base-100 p-6 space-y-4">
-            <div class="flex flex-wrap items-center justify-between gap-3">
-              <h2 class="font-semibold text-base-content">抽獎碼列表（共 {@codes_total} 筆）</h2>
-              <form phx-change="search_change" id="tx-code-search" class="w-full sm:w-auto">
-                <input
-                  type="search"
-                  name="search"
-                  value={@search}
-                  phx-debounce="300"
-                  placeholder="搜尋抽獎碼…"
-                  class="input input-bordered input-sm w-full sm:w-48"
-                />
-              </form>
-            </div>
-
-            <div class="overflow-x-auto">
-              <table class="table table-sm">
-                <thead>
-                  <tr>
-                    <th>抽獎碼</th>
-                    <th>狀態</th>
-                    <th>建立時間</th>
-                    <th class="text-right">操作</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr :for={row <- @codes} id={"tx-#{row.id}"}>
-                    <td class="font-mono text-sm">{row.transaction_number}</td>
-                    <td>
-                      <%= if row.is_used do %>
-                        <span class="badge badge-warning badge-sm">已使用</span>
-                      <% else %>
-                        <span class="badge badge-success badge-sm">未使用</span>
-                      <% end %>
-                    </td>
-                    <td class="text-xs text-base-content/60">
-                      {Calendar.strftime(row.inserted_at, "%Y-%m-%d %H:%M")}
-                    </td>
-                    <td class="text-right">
-                      <button
-                        type="button"
-                        phx-click="show_qr"
-                        phx-value-code={row.transaction_number}
-                        class="btn btn-xs btn-outline"
-                      >
-                        QR Code
-                      </button>
-                    </td>
-                  </tr>
-                  <tr :if={Enum.empty?(@codes)}>
-                    <td colspan="4" class="text-center text-base-content/50 py-8">
-                      尚無抽獎碼，請先新增或匯入。
-                    </td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
-
-            <.pagination
-              :if={@codes_total > 0}
-              page={@page}
-              page_size={@page_size}
-              total={@codes_total}
-              path={~p"/admin/campaigns/#{@campaign.id}/transaction-codes"}
-              params={%{"search" => @search}}
-            />
-          </div>
-        </div>
+        </.campaign_shell>
 
         <div :if={@qr_modal_open && @qr_target_code} class="fixed inset-0 z-50">
           <div
@@ -317,7 +379,9 @@ defmodule DobbyWeb.Admin.TransactionCodeLive.Index do
             <div class="w-full max-w-md rounded-2xl border border-base-300 bg-base-100 p-6 space-y-4 shadow-2xl">
               <div class="flex items-center justify-between">
                 <h3 class="text-lg font-semibold text-base-content">抽獎碼 QR Code</h3>
-                <button type="button" phx-click="close_qr" class="btn btn-ghost btn-xs">關閉</button>
+                <.secondary_button type="button" phx-click="close_qr" size="sm" class="!text-xs">
+                  關閉
+                </.secondary_button>
               </div>
 
               <% scratch_url = public_scratch_url(@campaign.id, @qr_target_code) %>
