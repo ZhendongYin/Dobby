@@ -41,6 +41,115 @@ defmodule Dobby.Lottery do
     |> Repo.update()
   end
 
+  @doc """
+  Paginated transaction numbers (scratch codes) for a campaign.
+  """
+  def list_transaction_numbers(campaign_id, opts \\ %{}) do
+    page = Helpers.fetch_integer_opt(opts, :page) || 1
+    page_size = Helpers.fetch_integer_opt(opts, :page_size) || 50
+    offset = (page - 1) * page_size
+    search = Helpers.fetch_opt(opts, :search)
+
+    base =
+      TransactionNumber
+      |> where([t], t.campaign_id == ^campaign_id)
+      |> maybe_search_transaction_codes(search)
+
+    total = Repo.aggregate(base, :count, :id)
+
+    items =
+      base
+      |> order_by([t], desc: t.inserted_at)
+      |> limit(^page_size)
+      |> offset(^offset)
+      |> Repo.all()
+
+    total_pages = if page_size > 0, do: ceil(total / page_size), else: 1
+
+    %{
+      items: items,
+      total: total,
+      page: page,
+      page_size: page_size,
+      total_pages: total_pages
+    }
+  end
+
+  defp maybe_search_transaction_codes(query, nil), do: query
+  defp maybe_search_transaction_codes(query, ""), do: query
+
+  defp maybe_search_transaction_codes(query, term) do
+    escaped = Helpers.escape_like(term)
+    like = "%#{escaped}%"
+
+    where(query, [t], ilike(t.transaction_number, ^like))
+  end
+
+  @doc """
+  Adds a single scratch code to the campaign whitelist.
+  """
+  def add_transaction_code(campaign_id, code) when is_binary(code) do
+    code = String.trim(code)
+
+    if code == "" do
+      {:error, :blank}
+    else
+      create_transaction_number(%{
+        "transaction_number" => code,
+        "campaign_id" => campaign_id
+      })
+    end
+  end
+
+  @doc """
+  Bulk-import codes (one per line or comma-separated). Skips duplicates globally (unique transaction_number).
+  """
+  def import_transaction_codes(campaign_id, raw_text) when is_binary(raw_text) do
+    codes =
+      raw_text
+      |> String.split(~r/[\r\n,]+/, trim: true)
+      |> Enum.map(&String.trim/1)
+      |> Enum.reject(&(&1 == ""))
+      |> Enum.uniq()
+
+    if codes == [] do
+      {:ok, %{requested: 0, inserted: 0, skipped_due_to_duplicate: 0}}
+    else
+      now = DateTime.utc_now() |> DateTime.truncate(:second)
+
+      entries =
+        Enum.map(codes, fn tn ->
+          %{
+            id: Ecto.UUID.generate(),
+            transaction_number: tn,
+            campaign_id: campaign_id,
+            is_used: false,
+            is_scratched: false,
+            used_at: nil,
+            ip_address: nil,
+            user_agent: nil,
+            inserted_at: now,
+            updated_at: now
+          }
+        end)
+
+      {inserted, _} =
+        Repo.insert_all(
+          TransactionNumber,
+          entries,
+          on_conflict: :nothing,
+          conflict_target: [:transaction_number]
+        )
+
+      {:ok,
+       %{
+         requested: length(codes),
+         inserted: inserted,
+         skipped_due_to_duplicate: length(codes) - inserted
+       }}
+    end
+  end
+
   # WinningRecord functions
 
   @doc """
@@ -276,6 +385,7 @@ defmodule Dobby.Lottery do
 
   alias Dobby.Lottery.ProbabilityEngine
   alias Dobby.Campaigns
+  alias Dobby.Campaigns.Campaign
   alias Dobby.Campaigns.Prize
   alias Dobby.Lottery.TransactionVerifier
 
@@ -304,14 +414,17 @@ defmodule Dobby.Lottery do
                Repo.rollback({:transaction_verification_failed, reason})
            end
 
-           # 3. 查找或创建交易记录
+           # 3. 查找或创建交易记录（依活動是否要求預先匯入序號）
            tx_number =
-             case ensure_transaction_record(transaction_number, campaign.id) do
+             case ensure_transaction_record(transaction_number, campaign) do
                {:ok, tx} ->
                  tx
 
                {:error, :campaign_mismatch} ->
                  Repo.rollback(:transaction_campaign_mismatch)
+
+               {:error, :code_not_registered} ->
+                 Repo.rollback(:code_not_registered)
 
                {:error, changeset} ->
                  Repo.rollback({:transaction_persist_error, changeset})
@@ -508,17 +621,21 @@ defmodule Dobby.Lottery do
     end
   end
 
-  defp ensure_transaction_record(transaction_number, campaign_id) do
+  defp ensure_transaction_record(transaction_number, %Campaign{} = campaign) do
     case get_transaction_number_by_code(transaction_number) do
       nil ->
-        %TransactionNumber{}
-        |> TransactionNumber.changeset(%{
-          "transaction_number" => transaction_number,
-          "campaign_id" => campaign_id
-        })
-        |> Repo.insert()
+        if campaign.require_preimported_codes do
+          {:error, :code_not_registered}
+        else
+          %TransactionNumber{}
+          |> TransactionNumber.changeset(%{
+            "transaction_number" => transaction_number,
+            "campaign_id" => campaign.id
+          })
+          |> Repo.insert()
+        end
 
-      %TransactionNumber{campaign_id: ^campaign_id} = tx ->
+      %TransactionNumber{campaign_id: cid} = tx when cid == campaign.id ->
         {:ok, tx}
 
       %TransactionNumber{} ->

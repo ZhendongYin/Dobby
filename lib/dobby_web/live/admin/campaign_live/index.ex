@@ -877,6 +877,7 @@ defmodule DobbyWeb.Admin.CampaignLive.Index do
     |> normalize_datetime_field(:starts_at)
     |> normalize_datetime_field(:ends_at)
     |> normalize_checkbox_field(:enable_protection)
+    |> normalize_checkbox_field(:require_preimported_codes)
   end
 
   defp normalize_datetime_field(params, field) when is_atom(field) do
@@ -1690,6 +1691,9 @@ defmodule DobbyWeb.Admin.CampaignLive.Index do
   defp field_label("is_protected"), do: "保護狀態"
   defp field_label("prize_type"), do: "獎品類型"
   defp field_label("prize_code"), do: "兌換碼"
+  defp field_label("require_preimported_codes"), do: "僅允許已匯入的抽獎碼"
+  defp field_label("enable_protection"), do: "大獎保護"
+  defp field_label("protection_count"), do: "保護數量"
   defp field_label(field), do: field
 
   defp format_log_value(nil), do: "—"
@@ -1898,7 +1902,7 @@ defmodule DobbyWeb.Admin.CampaignLive.Index do
           <% @live_action == :preview -> %>
             <div class="w-full space-y-6">
               <!-- Header -->
-              <div class="flex items-center justify-end mb-8">
+              <div class="flex flex-wrap items-center justify-end gap-2 mb-8">
                 <.primary_button navigate={~p"/admin/campaigns/#{@campaign.id}/edit"}>
                   <.icon name="hero-pencil" class="h-4 w-4" /> 編輯活動
                 </.primary_button>
@@ -1999,6 +2003,12 @@ defmodule DobbyWeb.Admin.CampaignLive.Index do
                       <span class="ml-2 px-2 py-0.5 text-xs bg-slate-100 text-slate-600 rounded-full">
                         {length(@prizes)}
                       </span>
+                    </a>
+                    <a
+                      href={~p"/admin/campaigns/#{@campaign.id}/transaction-codes"}
+                      class="px-6 py-4 text-sm font-semibold border-b-2 transition-colors whitespace-nowrap border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300"
+                    >
+                      <.icon name="hero-ticket" class="h-4 w-4 inline mr-2" /> 抽獎碼
                     </a>
                     <a
                       href={~p"/admin/campaigns/#{@campaign.id}/preview?#{[tab: "winners"]}"}
@@ -2627,7 +2637,7 @@ defmodule DobbyWeb.Admin.CampaignLive.Index do
                 type="text"
                 name="search"
                 value={Map.get(@winner_filter || %{}, :search, "")}
-                placeholder="搜尋姓名、Email 或交易號..."
+                placeholder="搜尋姓名、Email 或抽獎碼..."
                 class="w-full pl-10 pr-4 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
               />
             </div>
@@ -2677,7 +2687,7 @@ defmodule DobbyWeb.Admin.CampaignLive.Index do
                 </button>
               </th>
               <th class="px-4 py-3 text-left">
-                交易號
+                抽獎碼
               </th>
               <th class="px-4 py-3 text-left">
                 <button
@@ -2765,7 +2775,7 @@ defmodule DobbyWeb.Admin.CampaignLive.Index do
                     data-copy-success-label="已複製"
                     phx-hook="CopyToClipboard"
                     class="text-base-content/40 hover:text-base-content/70"
-                    title="複製交易號"
+                    title="複製抽獎碼"
                   >
                     <.icon name="hero-clipboard" class="h-4 w-4" />
                   </button>
@@ -3223,7 +3233,7 @@ defmodule DobbyWeb.Admin.CampaignLive.Index do
 
   defp build_winners_csv(records) do
     rows =
-      [["姓名", "Email", "交易號", "獎品", "狀態", "時間"] | Enum.map(records, &winner_csv_row/1)]
+      [["姓名", "Email", "抽獎碼", "獎品", "狀態", "時間"] | Enum.map(records, &winner_csv_row/1)]
 
     rows
     |> Enum.map_join("\n", fn row ->
@@ -3476,6 +3486,7 @@ defmodule DobbyWeb.Admin.CampaignLive.Index do
   defp translate_field_name(:ends_at), do: "結束時間"
   defp translate_field_name(:status), do: "狀態"
   defp translate_field_name(:protection_count), do: "保護數量"
+  defp translate_field_name(:require_preimported_codes), do: "僅允許已匯入的抽獎碼"
   defp translate_field_name(field), do: to_string(field)
 
   defp background_upload(socket) do

@@ -282,6 +282,17 @@ defmodule DobbyWeb.Admin.CampaignLive.FormComponent do
               <.input field={@form[:protection_count]} type="number" label="Protection Count" />
             </div>
 
+            <div class="rounded-2xl border border-base-300 bg-base-200/40 px-4 py-3 space-y-2">
+              <.input
+                field={@form[:require_preimported_codes]}
+                type="checkbox"
+                label="僅允許已匯入 / 已新增的抽獎碼"
+              />
+              <p class="text-xs text-base-content/60 pl-7">
+                勾選後，玩家必須使用您在後台「抽獎碼」中已建立的抽獎碼才能抽獎（新建活動預設為勾選）。取消勾選時，通過外部驗證的抽獎碼仍可於首次使用時自動建立。
+              </p>
+            </div>
+
             <div class="flex gap-4 mt-6">
               <.button_with_loading
                 type="submit"

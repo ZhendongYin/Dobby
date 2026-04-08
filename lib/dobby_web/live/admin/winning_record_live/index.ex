@@ -285,7 +285,7 @@ defmodule DobbyWeb.Admin.WinningRecordLive.Index do
                   type="text"
                   name="search"
                   value={@search}
-                  placeholder="Search by email, name, or transaction code"
+                  placeholder="Search by email, name, or 抽獎碼"
                   class="w-full"
                 />
               </form>
@@ -393,7 +393,7 @@ defmodule DobbyWeb.Admin.WinningRecordLive.Index do
                       <p class="font-medium text-base-content">{record.name || "—"}</p>
                       <p class="text-base-content/70 text-xs">{record.email || "No email"}</p>
                       <p :if={record.transaction_number} class="text-base-content/50 text-xs">
-                        Code: {record.transaction_number.transaction_number}
+                        抽獎碼: {record.transaction_number.transaction_number}
                       </p>
                     </td>
                     <td class="px-4 py-4 text-base-content">
@@ -485,7 +485,7 @@ defmodule DobbyWeb.Admin.WinningRecordLive.Index do
                     {@selected_record.prize && @selected_record.prize.name}
                   </h2>
                   <p class="text-sm text-slate-500">
-                    Transaction code: {@selected_record.transaction_number &&
+                    抽獎碼: {@selected_record.transaction_number &&
                       @selected_record.transaction_number.transaction_number}
                   </p>
                 </div>

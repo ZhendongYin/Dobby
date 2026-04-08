@@ -1,14 +1,22 @@
 import Config
 
-# Configure your database
-config :dobby, Dobby.Repo,
-  username: "postgres",
-  password: "postgres",
-  hostname: "localhost",
-  database: "dobby_dev",
-  stacktrace: true,
-  show_sensitive_data_on_connection_error: true,
-  pool_size: 10
+# Configure your database (DATABASE_URL is used by docker-compose.dev.yml)
+if database_url = System.get_env("DATABASE_URL") do
+  config :dobby, Dobby.Repo,
+    url: database_url,
+    stacktrace: true,
+    show_sensitive_data_on_connection_error: true,
+    pool_size: String.to_integer(System.get_env("POOL_SIZE") || "10")
+else
+  config :dobby, Dobby.Repo,
+    username: "postgres",
+    password: "postgres",
+    hostname: "localhost",
+    database: "dobby_dev",
+    stacktrace: true,
+    show_sensitive_data_on_connection_error: true,
+    pool_size: 10
+end
 
 # For development, we disable any cache and enable
 # debugging and code reloading.
@@ -17,9 +25,15 @@ config :dobby, Dobby.Repo,
 # watchers to your application. For example, we can use it
 # to bundle .js and .css sources.
 config :dobby, DobbyWeb.Endpoint,
-  # Binding to loopback ipv4 address prevents access from other machines.
-  # Change to `ip: {0, 0, 0, 0}` to allow access from other machines.
-  http: [ip: {127, 0, 0, 1}, port: String.to_integer(System.get_env("PORT") || "4000")],
+  # PHX_HTTP_BIND_ALL=true for Docker so the host can reach the container.
+  http: [
+    ip:
+      if(System.get_env("PHX_HTTP_BIND_ALL") in ~w(true 1),
+        do: {0, 0, 0, 0},
+        else: {127, 0, 0, 1}
+      ),
+    port: String.to_integer(System.get_env("PORT") || "4000")
+  ],
   check_origin: false,
   code_reloader: true,
   debug_errors: true,

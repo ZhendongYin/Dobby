@@ -16,6 +16,7 @@ defmodule Dobby.Campaigns.Campaign do
     field :rules_text, :string
     field :enable_protection, :boolean, default: false
     field :protection_count, :integer, default: 0
+    field :require_preimported_codes, :boolean, default: true
 
     belongs_to :admin, Dobby.Accounts.Admin
     has_many :prizes, Dobby.Campaigns.Prize
@@ -47,6 +48,7 @@ defmodule Dobby.Campaigns.Campaign do
       :rules_text,
       :enable_protection,
       :protection_count,
+      :require_preimported_codes,
       :admin_id
     ])
     |> validate_required([:name, :starts_at, :ends_at, :admin_id],

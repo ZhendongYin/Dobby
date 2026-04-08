@@ -11,7 +11,7 @@ defmodule DobbyWeb.Admin.EmailTemplateLive.Index do
     %{label: "獎品名稱", variable: "prize_name", sample: "豪華旅行組"},
     %{label: "獎品描述", variable: "prize_description", sample: "含雙人來回機票與五星飯店住宿"},
     %{label: "兌換說明", variable: "redemption_guide", sample: "請於 7 天內回覆此信件提供寄送資訊"},
-    %{label: "交易序號", variable: "transaction_number", sample: "TX-928341"},
+    %{label: "抽獎碼", variable: "transaction_number", sample: "TX-928341"},
     %{label: "虛擬序號", variable: "virtual_code", sample: "ABCD-1234"},
     %{label: "支援信箱", variable: "support_email", sample: "support@example.com"},
     %{label: "到期日期", variable: "expiry_date", sample: "2025 年 1 月 15 日"}

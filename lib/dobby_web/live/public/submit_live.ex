@@ -270,7 +270,7 @@ defmodule DobbyWeb.Public.SubmitLive do
                         {@prize.description}
                       </p>
                       <p class="text-xs text-slate-400 mt-4">
-                        券码：<span class="font-mono text-white"><%= @transaction_code || "N/A" %></span>
+                        抽獎碼：<span class="font-mono text-white"><%= @transaction_code || "N/A" %></span>
                       </p>
                     </div>
                     <div class="bg-white/5 border border-white/10 rounded-2xl p-6 text-sm text-slate-300 space-y-2">

@@ -1,7 +1,17 @@
-version: '3.8'
-
-# Development docker-compose configuration
-# Usage: docker-compose -f docker-compose.dev.yml up
+# Development docker-compose: dev Dockerfile + bind-mount project for hot reload.
+#
+# Usage:
+#   docker compose -f docker-compose.dev.yml up -d --build
+# Web: http://localhost:4000 (set APP_PUBLISH_PORT to change host port)
+#
+# Edits under the project root on the host are picked up by mix phx.server
+# (code reloader + LiveView reload). deps/ and _build/ live in named volumes
+# so they stay Linux-built inside the container.
+#
+# DB user/password/database: postgres / postgres / dobby_dev
+#
+# If you still see invalid_password, reset the DB volume:
+#   docker compose -f docker-compose.dev.yml down -v && docker compose -f docker-compose.dev.yml up -d --build
 
 services:
   db:
@@ -11,10 +21,19 @@ services:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
       POSTGRES_DB: dobby_dev
+      LANG: C.UTF-8
+      LC_ALL: C.UTF-8
+      POSTGRES_INITDB_ARGS: "--encoding=UTF8 --locale=C.UTF-8"
     volumes:
       - postgres_dev_data:/var/lib/postgresql/data
     ports:
-      - "5432:5432"
+      - "${POSTGRES_PORT:-5432}:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d dobby_dev"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
     networks:
       - dobby_network
 
@@ -25,15 +44,73 @@ services:
     volumes:
       - redis_dev_data:/data
     ports:
-      - "6379:6379"
+      - "${REDIS_PORT:-6379}:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    networks:
+      - dobby_network
+
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    container_name: dobby_web_dev
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      MIX_ENV: dev
+      DATABASE_URL: postgresql://postgres:postgres@db:5432/dobby_dev
+      POOL_SIZE: ${POOL_SIZE:-10}
+      PORT: ${PORT:-4000}
+      PHX_HOST: ${PHX_HOST:-localhost}
+      PHX_PUBLIC_SCHEME: ${PHX_PUBLIC_SCHEME:-http}
+      PHX_PUBLIC_PORT: ${PHX_PUBLIC_PORT:-4000}
+      PHX_SERVER: "true"
+      PHX_HTTP_BIND_ALL: "true"
+      RUN_SEED_ON_START: ${RUN_SEED_ON_START:-true}
+      SECRET_KEY_BASE: dobby_dev_compose_only_use_mix_phx_gen_secret_for_real_deploy_xxxxxxxxxxxxxxxxxxxxxxxxxxxx
+      REDIS_URL: ${REDIS_URL:-redis://redis:6379}
+      AWS_REGION: ${AWS_REGION:-us-east-1}
+      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:-}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:-}
+      S3_BUCKET: ${S3_BUCKET:-}
+      CLOUDFRONT_URL: ${CLOUDFRONT_URL:-}
+      AWS_SES_REGION: ${AWS_SES_REGION:-us-east-1}
+      FROM_EMAIL: ${FROM_EMAIL:-noreply@localhost}
+      SUPPORT_EMAIL: ${SUPPORT_EMAIL:-support@localhost}
+      LANG: C.UTF-8
+      LC_ALL: C.UTF-8
+      ELIXIR_ERL_OPTIONS: "+fnu"
+    ports:
+      - "${APP_PUBLISH_PORT:-4000}:${PORT:-4000}"
+    volumes:
+      - .:/app
+      - dobby_dev_mix_deps:/app/deps
+      - dobby_dev_mix_build:/app/_build
+      - uploads_dev_data:/app/priv/static/uploads
+    command: ["sh", "/app/docker/entrypoint-dev.sh"]
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:4000/"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+      start_period: 120s
     networks:
       - dobby_network
 
 volumes:
   postgres_dev_data:
   redis_dev_data:
+  uploads_dev_data:
+  dobby_dev_mix_deps:
+  dobby_dev_mix_build:
 
 networks:
   dobby_network:
     driver: bridge
-

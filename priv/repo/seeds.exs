@@ -14,13 +14,13 @@ alias Dobby.Repo
 alias Dobby.Accounts
 alias Dobby.PrizeLibrary
 
-IO.puts("🌱 开始创建种子数据...")
+IO.puts("🌱 開始初始化展示資料…")
 IO.puts("")
 
 # ============================================
-# 创建管理员账号
+# 建立管理員帳號
 # ============================================
-IO.puts("👤 创建管理员账号...")
+IO.puts("👤 建立管理員帳號...")
 
 admin_email = "admin@dobby.com"
 admin_password = System.get_env("ADMIN_PASSWORD") || "Admin123!"
@@ -30,79 +30,79 @@ case Accounts.get_admin_by_email(admin_email) do
     case Accounts.register_admin(%{
            email: admin_email,
            password: admin_password,
-           name: "系统管理员",
+           name: "系統管理員",
            role: "admin"
          }) do
       {:ok, admin} ->
-        IO.puts("  ✅ 创建管理员成功: #{admin.email}")
-        IO.puts("  📧 邮箱: #{admin.email}")
-        IO.puts("  🔑 密码: #{admin_password}")
-        IO.puts("  ⚠️  请在生产环境中修改默认密码！")
+        IO.puts("  ✅ 建立管理員成功: #{admin.email}")
+        IO.puts("  📧 信箱: #{admin.email}")
+        IO.puts("  🔑 密碼: #{admin_password}")
+        IO.puts("  ⚠️  請在生產環境中修改預設密碼！")
 
       {:error, changeset} ->
-        IO.puts("  ❌ 创建管理员失败:")
-        IO.inspect(changeset.errors, label: "错误")
+        IO.puts("  ❌ 建立管理員失敗:")
+        IO.inspect(changeset.errors, label: "錯誤")
     end
 
   existing_admin ->
-    IO.puts("  ℹ️  管理员已存在: #{existing_admin.email}")
+    IO.puts("  ℹ️  管理員已存在: #{existing_admin.email}")
 end
 
 IO.puts("")
 
 # ============================================
-# 创建奖品模板
+# 建立獎品模板
 # ============================================
-IO.puts("🎁 创建奖品模板...")
+IO.puts("🎁 建立獎品模板...")
 
 prize_templates = [
   %{
     name: "iPhone 15 Pro",
     prize_type: "physical",
-    description: "最新款 iPhone 15 Pro，256GB 存储",
-    redemption_guide: "中奖后请在30天内填写收货地址，我们会在7个工作日内发货。"
+    description: "最新款 iPhone 15 Pro，256GB 儲存空間",
+    redemption_guide: "中獎後請在 30 天內填寫收貨地址，我們會在 7 個工作天內出貨。"
   },
   %{
     name: "iPad Air",
     prize_type: "physical",
-    description: "iPad Air 第5代，64GB 存储",
-    redemption_guide: "中奖后请在30天内填写收货地址，我们会在7个工作日内发货。"
+    description: "iPad Air 第 5 代，64GB 儲存空間",
+    redemption_guide: "中獎後請在 30 天內填寫收貨地址，我們會在 7 個工作天內出貨。"
   },
   %{
     name: "AirPods Pro",
     prize_type: "physical",
-    description: "Apple AirPods Pro 第2代，主动降噪",
-    redemption_guide: "中奖后请在30天内填写收货地址，我们会在7个工作日内发货。"
+    description: "Apple AirPods Pro 第 2 代，主動降噪",
+    redemption_guide: "中獎後請在 30 天內填寫收貨地址，我們會在 7 個工作天內出貨。"
   },
   %{
-    name: "100元优惠券",
+    name: "100元優惠券",
     prize_type: "virtual",
-    description: "适用于全品类商品，有效期90天",
-    redemption_guide: "中奖后系统会自动发放优惠券到您的账户，可在购物时直接使用。"
+    description: "適用於全品類商品，有效期 90 天",
+    redemption_guide: "中獎後系統會自動發放優惠券到您的帳戶，可在購物時直接使用。"
   },
   %{
-    name: "50元优惠券",
+    name: "50元優惠券",
     prize_type: "virtual",
-    description: "适用于全品类商品，有效期60天",
-    redemption_guide: "中奖后系统会自动发放优惠券到您的账户，可在购物时直接使用。"
+    description: "適用於全品類商品，有效期 60 天",
+    redemption_guide: "中獎後系統會自動發放優惠券到您的帳戶，可在購物時直接使用。"
   },
   %{
-    name: "20元优惠券",
+    name: "20元優惠券",
     prize_type: "virtual",
-    description: "适用于全品类商品，有效期30天",
-    redemption_guide: "中奖后系统会自动发放优惠券到您的账户，可在购物时直接使用。"
+    description: "適用於全品類商品，有效期 30 天",
+    redemption_guide: "中獎後系統會自動發放優惠券到您的帳戶，可在購物時直接使用。"
   },
   %{
-    name: "10元优惠券",
+    name: "10元優惠券",
     prize_type: "virtual",
-    description: "适用于全品类商品，有效期30天",
-    redemption_guide: "中奖后系统会自动发放优惠券到您的账户，可在购物时直接使用。"
+    description: "適用於全品類商品，有效期 30 天",
+    redemption_guide: "中獎後系統會自動發放優惠券到您的帳戶，可在購物時直接使用。"
   },
   %{
-    name: "谢谢参与",
+    name: "謝謝參與",
     prize_type: "no_prize",
-    description: "感谢参与抽奖活动",
-    redemption_guide: "感谢您的参与，请继续关注我们的活动！"
+    description: "感謝參與抽獎活動",
+    redemption_guide: "感謝您的參與，請持續關注我們的活動！"
   }
 ]
 
@@ -116,8 +116,8 @@ prize_templates = [
             {created + 1, skipped}
 
           {:error, changeset} ->
-            IO.puts("  ❌ 创建失败: #{template_attrs.name}")
-            IO.inspect(changeset.errors, label: "错误")
+            IO.puts("  ❌ 建立失敗: #{template_attrs.name}")
+            IO.inspect(changeset.errors, label: "錯誤")
             {created, skipped}
         end
 
@@ -127,24 +127,24 @@ prize_templates = [
     end
   end)
 
-IO.puts("  📊 创建: #{created_count} 个，跳过: #{skipped_count} 个")
+IO.puts("  📊 建立: #{created_count} 個，略過: #{skipped_count} 個")
 IO.puts("")
 
 # ============================================
-# 郵件模板與示範活動（當天起為期 30 天）
+# 郵件模板與活動（當天起為期 30 天）
 # ============================================
 Code.require_file(Path.expand("seeds/email_templates_and_campaigns.exs", __DIR__))
 
 # ============================================
 # 完成
 # ============================================
-IO.puts("✅ 种子数据创建完成！")
+IO.puts("✅ 展示資料初始化完成！")
 IO.puts("")
-IO.puts("📝 默认管理员登录信息：")
-IO.puts("   邮箱: #{admin_email}")
-IO.puts("   密码: #{admin_password}")
+IO.puts("📝 預設管理員登入資訊：")
+IO.puts("   信箱: #{admin_email}")
+IO.puts("   密碼: #{admin_password}")
 IO.puts("")
-IO.puts("⚠️  生产环境注意事项：")
-IO.puts("   1. 请立即修改管理员密码")
-IO.puts("   2. 可以通过环境变量 ADMIN_PASSWORD 设置初始密码")
-IO.puts("   3. 运行: ADMIN_PASSWORD=your_secure_password mix run priv/repo/seeds.exs")
+IO.puts("⚠️  生產環境注意事項：")
+IO.puts("   1. 請立即修改管理員密碼")
+IO.puts("   2. 可透過環境變數 ADMIN_PASSWORD 設定初始密碼")
+IO.puts("   3. 執行: ADMIN_PASSWORD=your_secure_password mix run priv/repo/seeds.exs")

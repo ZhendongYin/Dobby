@@ -55,11 +55,14 @@ defmodule DobbyWeb.Public.ScratchLiveTest do
       campaign_b = campaign_fixture(admin, %{name: "Other Campaign"})
       transaction = transaction_fixture(campaign_b, %{is_used: true})
 
-      assert {:error, {:redirect, %{to: "/"}}} =
+      assert {:error, {:redirect, %{to: to}}} =
                live(
                  conn,
                  ~p"/campaigns/#{campaign_a.id}/scratch/#{transaction.transaction_number}"
                )
+
+      assert to =~ "invalid-code"
+      assert to =~ campaign_a.id
     end
   end
 
@@ -74,7 +77,8 @@ defmodule DobbyWeb.Public.ScratchLiveTest do
       "ends_at" => DateTime.add(now, 7200, :second),
       "admin_id" => admin.id,
       "enable_protection" => false,
-      "protection_count" => 0
+      "protection_count" => 0,
+      "require_preimported_codes" => false
     }
 
     {:ok, campaign} =

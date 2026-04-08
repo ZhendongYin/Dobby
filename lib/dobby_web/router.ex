@@ -23,7 +23,9 @@ defmodule DobbyWeb.Router do
   scope "/", DobbyWeb.Public do
     pipe_through :browser
 
-    # 刮奖入口（通过交易码 + 活动 UUID）
+    # 无效序号提示页
+    live "/campaigns/:campaign_id/invalid-code", InvalidCodeLive, :show
+    # 刮獎入口（透過抽獎碼 + 活動 UUID）
     live "/campaigns/:campaign_id/scratch/:transaction_number", ScratchLive, :show
     # 信息提交页
     live "/submit/:winning_record_id", SubmitLive, :show
@@ -70,6 +72,7 @@ defmodule DobbyWeb.Router do
       live "/email-templates/:id/edit", EmailTemplateLive.Index, :edit
       live "/email-logs", EmailLogLive.Index, :index
       live "/campaigns/:id/winning-records", WinningRecordLive.Index, :index
+      live "/campaigns/:campaign_id/transaction-codes", TransactionCodeLive.Index, :index
     end
   end
 

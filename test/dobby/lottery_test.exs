@@ -277,7 +277,8 @@ defmodule Dobby.LotteryTest do
       "ends_at" => DateTime.add(now, 7200, :second),
       "admin_id" => admin.id,
       "enable_protection" => false,
-      "protection_count" => 0
+      "protection_count" => 0,
+      "require_preimported_codes" => false
     }
 
     {:ok, campaign} =
@@ -296,6 +297,44 @@ defmodule Dobby.LotteryTest do
       })
 
     campaign
+  end
+
+  describe "require_preimported_codes" do
+    test "rejects draw when code is not pre-registered and flag is true", %{admin: admin} do
+      campaign =
+        admin
+        |> active_campaign_fixture(%{"require_preimported_codes" => true})
+
+      prize_fixture(campaign, %{
+        "total_quantity" => 10,
+        "remaining_quantity" => 10,
+        "probability_mode" => "percentage",
+        "probability" => "100"
+      })
+
+      tx = "TX-NOT-IMPORTED-#{System.unique_integer([:positive])}"
+
+      assert {:error, :code_not_registered} =
+               Lottery.draw_and_record(tx, campaign.id, "127.0.0.1", "test")
+    end
+
+    test "allows draw when code is pre-registered and flag is true", %{admin: admin} do
+      campaign =
+        admin
+        |> active_campaign_fixture(%{"require_preimported_codes" => true})
+
+      prize_fixture(campaign, %{
+        "total_quantity" => 10,
+        "remaining_quantity" => 10,
+        "probability_mode" => "percentage",
+        "probability" => "100"
+      })
+
+      tx = "TX-PRE-#{System.unique_integer([:positive])}"
+      {:ok, _} = Lottery.create_transaction_number(%{"transaction_number" => tx, "campaign_id" => campaign.id})
+
+      assert {:ok, _} = Lottery.draw_and_record(tx, campaign.id, "127.0.0.1", "test")
+    end
   end
 
   defp prize_fixture(campaign, attrs) do

@@ -21,7 +21,11 @@ defmodule DobbyWeb.Public.ScratchLive do
       cond do
         tx_record && tx_record.campaign_id != campaign.id ->
           {:noreply,
-           invalid_access(socket, "Transaction number does not belong to this campaign")}
+           invalid_access(
+             socket,
+             "此抽獎碼不屬於本活動。",
+             campaign: campaign
+           )}
 
         tx_record && tx_record.is_used ->
           winning_record = Lottery.get_winning_record_by_transaction_number(tx_record.id)
@@ -85,7 +89,7 @@ defmodule DobbyWeb.Public.ScratchLive do
       end
     else
       {:error, :campaign_not_found} ->
-        {:noreply, invalid_access(socket, "Campaign not found")}
+        {:noreply, invalid_access(socket, "找不到此活動。")}
     end
   end
 
@@ -152,7 +156,11 @@ defmodule DobbyWeb.Public.ScratchLive do
 
       {:error, reason} ->
         Logger.debug("Validation failed: #{inspect(reason)}")
-        {:noreply, invalid_access(socket, humanize_lottery_error(reason))}
+
+        {:noreply,
+         invalid_access(socket, humanize_lottery_error(reason),
+           campaign: socket.assigns[:campaign]
+         )}
     end
   end
 
@@ -180,30 +188,43 @@ defmodule DobbyWeb.Public.ScratchLive do
     end
   end
 
-  defp invalid_access(socket, message) do
-    socket
-    |> put_flash(:error, message)
-    |> redirect(to: ~p"/")
+  defp invalid_access(socket, message, opts \\ []) do
+    campaign = Keyword.get(opts, :campaign) || socket.assigns[:campaign]
+
+    socket =
+      socket
+      |> put_flash(:error, message)
+
+    case campaign do
+      %{id: id} when not is_nil(id) ->
+        redirect(socket, to: ~p"/campaigns/#{id}/invalid-code")
+
+      _ ->
+        redirect(socket, to: ~p"/")
+    end
   end
 
-  defp humanize_lottery_error(:campaign_inactive), do: "This campaign is not active."
-  defp humanize_lottery_error(:campaign_not_started), do: "This campaign has not started yet."
-  defp humanize_lottery_error(:campaign_ended), do: "This campaign has already ended."
+  defp humanize_lottery_error(:campaign_inactive), do: "此活動未在進行中。"
+  defp humanize_lottery_error(:campaign_not_started), do: "此活動尚未開始。"
+  defp humanize_lottery_error(:campaign_ended), do: "此活動已結束。"
 
   defp humanize_lottery_error(:transaction_already_used),
-    do: "This transaction number was already used."
+    do: "此抽獎碼已使用過。"
 
   defp humanize_lottery_error(:transaction_campaign_mismatch),
-    do: "Transaction number does not belong to this campaign."
+    do: "此抽獎碼不屬於本活動。"
+
+  defp humanize_lottery_error(:code_not_registered),
+    do: "此抽獎碼不在本活動名單內，請確認是否已完成匯入。"
 
   defp humanize_lottery_error({:transaction_verification_failed, reason}),
-    do: "Transaction verification failed: #{inspect(reason)}"
+    do: "交易驗證失敗：#{inspect(reason)}"
 
   defp humanize_lottery_error({:transaction_persist_error, changeset}),
-    do: "Failed to record transaction number: #{inspect(changeset.errors)}"
+    do: "無法建立抽獎碼：#{inspect(changeset.errors)}"
 
   defp humanize_lottery_error(other),
-    do: "Failed to draw. Reason: #{inspect(other)}"
+    do: "無法完成抽獎：#{inspect(other)}"
 
   defp default_prize do
     %Prize{prize_type: "no_prize", name: "", description: nil}
@@ -303,7 +324,7 @@ defmodule DobbyWeb.Public.ScratchLive do
                     <div class="h-2 w-2 rounded-full bg-indigo-300 animate-pulse"></div>
                     验证中...
                   </div>
-                  <p class="text-2xl font-semibold text-white">正在确认券码</p>
+                  <p class="text-2xl font-semibold text-white">正在確認抽獎碼</p>
                   <p class="text-slate-100">请稍候，几秒钟即可完成。</p>
                   <div class="flex justify-center">
                     <div class="h-12 w-12 border-4 border-white/30 border-t-white rounded-full animate-spin">
@@ -451,9 +472,9 @@ defmodule DobbyWeb.Public.ScratchLive do
               <% @state == :already_used -> %>
                 <div class="text-center space-y-6">
                   <div class="inline-flex items-center gap-2 rounded-full bg-white/10 text-amber-200 px-4 py-1.5 text-sm">
-                    <.icon name="hero-information-circle" class="h-4 w-4" /> 券码已使用
+                    <.icon name="hero-information-circle" class="h-4 w-4" /> 抽獎碼已使用
                   </div>
-                  <p class="text-2xl font-semibold text-white">这张券码已经刮开过啦</p>
+                  <p class="text-2xl font-semibold text-white">這張抽獎碼已經刮開過啦</p>
                   <%= if @prize do %>
                     <p class="text-slate-100">
                       上次惊喜是 <span class="font-semibold text-white">{@prize.name}</span>
