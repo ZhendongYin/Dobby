@@ -1946,9 +1946,8 @@ defmodule DobbyWeb.Admin.CampaignLive.Index do
               <div class="bg-base-100 rounded-2xl shadow-sm border border-base-300 transition-colors">
                 <div class="border-b border-base-200">
                   <nav class="flex overflow-x-auto" aria-label="Tabs">
-                    <button
-                      phx-click="switch_tab"
-                      phx-value-tab="overview"
+                    <a
+                      href={~p"/admin/campaigns/#{@campaign.id}/preview?#{[tab: "overview"]}"}
                       class={[
                         "px-6 py-4 text-sm font-semibold border-b-2 transition-colors whitespace-nowrap",
                         if(@active_tab == "overview",
@@ -1959,10 +1958,9 @@ defmodule DobbyWeb.Admin.CampaignLive.Index do
                       ]}
                     >
                       <.icon name="hero-information-circle" class="h-4 w-4 inline mr-2" /> 概覽
-                    </button>
-                    <button
-                      phx-click="switch_tab"
-                      phx-value-tab="prizes"
+                    </a>
+                    <a
+                      href={~p"/admin/campaigns/#{@campaign.id}/preview?#{[tab: "prizes"]}"}
                       class={[
                         "px-6 py-4 text-sm font-semibold border-b-2 transition-colors whitespace-nowrap",
                         if(@active_tab == "prizes",
@@ -1976,10 +1974,9 @@ defmodule DobbyWeb.Admin.CampaignLive.Index do
                       <span class="ml-2 px-2 py-0.5 text-xs bg-slate-100 text-slate-600 rounded-full">
                         {length(@prizes)}
                       </span>
-                    </button>
-                    <button
-                      phx-click="switch_tab"
-                      phx-value-tab="winners"
+                    </a>
+                    <a
+                      href={~p"/admin/campaigns/#{@campaign.id}/preview?#{[tab: "winners"]}"}
                       class={[
                         "px-6 py-4 text-sm font-semibold border-b-2 transition-colors whitespace-nowrap",
                         if(@active_tab == "winners",
@@ -1993,10 +1990,9 @@ defmodule DobbyWeb.Admin.CampaignLive.Index do
                       <span class="ml-2 px-2 py-0.5 text-xs bg-slate-100 text-slate-600 rounded-full">
                         {(@winning_summary && @winning_summary["total"]) || 0}
                       </span>
-                    </button>
-                    <button
-                      phx-click="switch_tab"
-                      phx-value-tab="activity"
+                    </a>
+                    <a
+                      href={~p"/admin/campaigns/#{@campaign.id}/preview?#{[tab: "activity"]}"}
                       class={[
                         "px-6 py-4 text-sm font-semibold border-b-2 transition-colors whitespace-nowrap",
                         if(@active_tab == "activity",
@@ -2007,7 +2003,7 @@ defmodule DobbyWeb.Admin.CampaignLive.Index do
                       ]}
                     >
                       <.icon name="hero-clock" class="h-4 w-4 inline mr-2" /> 活動日誌
-                    </button>
+                    </a>
                   </nav>
                 </div>
 
@@ -2164,6 +2160,12 @@ defmodule DobbyWeb.Admin.CampaignLive.Index do
                           點擊卡片可立即跳轉到 Preview 做進階管理
                         </div>
                         <div class="flex flex-wrap gap-2">
+                          <a
+                            href={~p"/admin/campaigns/#{campaign.id}/preview"}
+                            class="inline-flex items-center gap-1 rounded-full border border-base-200 px-3 py-1.5 text-xs font-semibold text-base-content/70 hover:border-primary/40 hover:text-primary transition-colors"
+                          >
+                            預覽
+                          </a>
                           <button
                             type="button"
                             phx-click="toggle_status"

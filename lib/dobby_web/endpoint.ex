@@ -13,11 +13,12 @@ defmodule DobbyWeb.Endpoint do
 
   socket "/live", Phoenix.LiveView.Socket,
     websocket: [
+      # Some in-app WebViews (e.g. custom mobile containers) may omit/alter
+      # Origin behavior and get blocked before session/csrf validation.
+      check_origin: false,
       connect_info: [:peer_data, :user_agent, session: @session_options]
     ],
-    longpoll: [
-      connect_info: [:peer_data, :user_agent, session: @session_options]
-    ]
+    longpoll: false
 
   # Serve at "/" the static files from "priv/static" directory.
   #

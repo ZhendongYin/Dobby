@@ -163,7 +163,8 @@ const CopyToClipboard = {
 
 const csrfToken = document.querySelector("meta[name='csrf-token']").getAttribute("content")
 const liveSocket = new LiveSocket("/live", Socket, {
-  longPollFallbackMs: 2500,
+  // WAF blocks /live/longpoll in production traffic, keep websocket-only transport.
+  longPollFallbackMs: false,
   params: {_csrf_token: csrfToken},
   hooks: {...colocatedHooks, ScratchCard, CampaignChart, DownloadCSV, EmailEditor, CopyToClipboard},
 })
