@@ -829,6 +829,24 @@ defmodule DobbyWeb.Admin.CampaignLive.Index do
     end
   end
 
+  @impl true
+  def handle_event("cancel-upload", %{"ref" => ref}, socket) do
+    socket = cancel_upload(socket, :background_image, ref)
+
+    update_form_component(socket)
+
+    {:noreply, socket}
+  end
+
+  @impl true
+  def handle_event("clear-uploaded-background", _params, socket) do
+    socket = assign(socket, :latest_background_image_url, nil)
+
+    update_form_component(socket, latest_background_image_url: nil)
+
+    {:noreply, socket}
+  end
+
   defp normalize_datetime_params(params) do
     params
     |> normalize_datetime_field(:starts_at)
@@ -908,24 +926,6 @@ defmodule DobbyWeb.Admin.CampaignLive.Index do
       end
 
     Map.put(params, field_str, value)
-  end
-
-  @impl true
-  def handle_event("cancel-upload", %{"ref" => ref}, socket) do
-    socket = cancel_upload(socket, :background_image, ref)
-
-    update_form_component(socket)
-
-    {:noreply, socket}
-  end
-
-  @impl true
-  def handle_event("clear-uploaded-background", _params, socket) do
-    socket = assign(socket, :latest_background_image_url, nil)
-
-    update_form_component(socket, latest_background_image_url: nil)
-
-    {:noreply, socket}
   end
 
   def handle_progress(:background_image, entry, socket) do
@@ -1832,7 +1832,7 @@ defmodule DobbyWeb.Admin.CampaignLive.Index do
     # Log upload status before rendering (only for new/edit actions)
     require Logger
 
-    upload =
+    background_upload =
       if assigns.live_action in [:new, :edit] do
         upload_val = Map.get(assigns.uploads || %{}, :background_image)
 
@@ -1851,6 +1851,8 @@ defmodule DobbyWeb.Admin.CampaignLive.Index do
         nil
       end
 
+    assigns = assign(assigns, :background_upload, background_upload)
+
     ~H"""
     <Layouts.app flash={@flash} current_scope={%{scope: :admin, current_nav: :campaigns}}>
       <.page_container>
@@ -1865,7 +1867,7 @@ defmodule DobbyWeb.Admin.CampaignLive.Index do
               form={@form}
               current_admin={@current_admin}
               latest_background_image_url={@latest_background_image_url}
-              background_upload={upload}
+              background_upload={@background_upload}
               return_to={~p"/admin/campaigns"}
             />
           <% @live_action == :preview -> %>
