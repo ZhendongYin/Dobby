@@ -18,7 +18,13 @@ defmodule DobbyWeb.Endpoint do
       check_origin: false,
       connect_info: [:peer_data, :user_agent, session: @session_options]
     ],
-    longpoll: false
+    # Must stay enabled when assets use LiveSocket longPollFallbackMs: WebSocket-only
+    # stacks break LiveView behind proxies/WAF that block upgrades; longpoll shares
+    # the same Origin/session strategy as websocket above.
+    longpoll: [
+      check_origin: false,
+      connect_info: [:peer_data, :user_agent, session: @session_options]
+    ]
 
   # Serve at "/" the static files from "priv/static" directory.
   #
