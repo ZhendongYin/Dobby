@@ -2088,9 +2088,7 @@ defmodule DobbyWeb.Admin.CampaignLive.Index do
                     <div
                       :for={campaign <- @campaigns}
                       id={"campaign-card-#{campaign.id}"}
-                      phx-click="open_preview"
-                      phx-value-id={campaign.id}
-                      class="group relative rounded-3xl border border-base-300 bg-base-100 p-6 shadow-sm transition-all hover:-translate-y-1 hover:shadow-2xl hover:shadow-primary/20 cursor-pointer"
+                      class="group relative rounded-3xl border border-base-300 bg-base-100 p-6 shadow-sm transition-all hover:-translate-y-1 hover:shadow-2xl hover:shadow-primary/20"
                     >
                       <div class="flex flex-col gap-2 lg:flex-row lg:items-start lg:justify-between">
                         <div class="flex-1">
@@ -2098,7 +2096,12 @@ defmodule DobbyWeb.Admin.CampaignLive.Index do
                             campaign
                           </p>
                           <h2 class="text-lg font-semibold text-base-content group-hover:text-primary transition-colors">
-                            {campaign.name || "未命名活動"}
+                            <a
+                              href={~p"/admin/campaigns/#{campaign.id}/preview"}
+                              class="hover:text-primary"
+                            >
+                              {campaign.name || "未命名活動"}
+                            </a>
                           </h2>
                           <p class="text-sm text-base-content/70 mt-0.5 line-clamp-2">
                             {campaign.description || "尚未提供描述，建議補上活動亮點。"}
@@ -2157,7 +2160,7 @@ defmodule DobbyWeb.Admin.CampaignLive.Index do
                       <div class="mt-4 flex flex-wrap items-center justify-between gap-2 border-t border-base-200 pt-3">
                         <div class="text-xs text-base-content/70 flex items-center gap-1">
                           <.icon name="hero-cursor-arrow-rays" class="h-4 w-4 text-primary" />
-                          點擊卡片可立即跳轉到 Preview 做進階管理
+                          點擊「預覽」或活動名稱可進入 Preview
                         </div>
                         <div class="flex flex-wrap gap-2">
                           <a

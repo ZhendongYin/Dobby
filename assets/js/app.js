@@ -171,8 +171,17 @@ const liveSocket = new LiveSocket("/live", Socket, {
 
 // Show progress bar on live navigation and form submits
 topbar.config({barColors: {0: "#29d"}, shadowColor: "rgba(0, 0, 0, .3)"})
-window.addEventListener("phx:page-loading-start", _info => topbar.show(300))
-window.addEventListener("phx:page-loading-stop", _info => topbar.hide())
+let topbarSafetyTimer = null
+window.addEventListener("phx:page-loading-start", _info => {
+  topbar.show(300)
+  if (topbarSafetyTimer) clearTimeout(topbarSafetyTimer)
+  // Some in-app WebViews may miss stop events when LiveView transport is unstable.
+  topbarSafetyTimer = setTimeout(() => topbar.hide(), 8000)
+})
+window.addEventListener("phx:page-loading-stop", _info => {
+  if (topbarSafetyTimer) clearTimeout(topbarSafetyTimer)
+  topbar.hide()
+})
 
 // connect if there are any LiveViews on the page
 liveSocket.connect()

@@ -66,12 +66,12 @@ defmodule DobbyWeb.Admin.EmailTemplateLive.Index do
                     class="rounded-xl border border-base-300 bg-base-100/95 shadow-sm"
                   >
                     <div id="email-editor" class="min-h-[320px]"></div>
-                    <input
-                      type="hidden"
+                    <textarea
                       id="html-content-input"
                       name="email_template[html_content]"
-                      value={@template_form[:html_content].value}
-                    />
+                      phx-debounce="750"
+                      class="w-full min-h-[260px] rounded-b-xl border-0 border-t border-base-300 bg-base-100 p-4 font-mono text-sm"
+                    ><%= @template_form[:html_content].value || "" %></textarea>
                     <textarea
                       id="text-content-input"
                       name="email_template[text_content]"

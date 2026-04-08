@@ -71,6 +71,9 @@ export const EmailEditor = {
 
       console.log("EmailEditor: Quill initialized", this.quill)
 
+      // Quill is ready, keep textarea as graceful fallback only.
+      htmlInput.style.display = "none"
+
       // Wait a bit for Quill to create DOM elements
       setTimeout(() => {
         // Ensure Quill elements are visible
@@ -207,6 +210,10 @@ export const EmailEditor = {
     } catch (error) {
       console.error("EmailEditor: Failed to initialize", error)
       console.error(error.stack)
+      // Keep textarea visible when Quill fails so HTML remains editable.
+      if (htmlInput) {
+        htmlInput.style.display = "block"
+      }
     }
   },
 
