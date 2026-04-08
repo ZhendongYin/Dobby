@@ -67,7 +67,8 @@ services:
       PORT: ${PORT:-4000}
       PHX_HOST: ${PHX_HOST:-localhost}
       PHX_PUBLIC_SCHEME: ${PHX_PUBLIC_SCHEME:-http}
-      PHX_PUBLIC_PORT: ${NGINX_HTTP_PORT:-80}
+      # Prefer PHX_PUBLIC_PORT from .env (browser-visible port); else match Nginx host port.
+      PHX_PUBLIC_PORT: ${PHX_PUBLIC_PORT:-${NGINX_HTTP_PORT:-80}}
       PHX_SERVER: "true"
       
       # Secrets (must be set in .env file)
