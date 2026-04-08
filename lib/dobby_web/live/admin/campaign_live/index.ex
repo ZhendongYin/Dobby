@@ -294,43 +294,61 @@ defmodule DobbyWeb.Admin.CampaignLive.Index do
     mode = Map.get(params, "mode", "new")
     campaign = socket.assigns.campaign
 
-    {prize, title, locked_fields} =
-      case mode do
-        "edit" ->
-          admin_id = socket.assigns.current_admin.id
-          prize = Campaigns.get_prize!(params["prize_id"])
-          # Verify ownership before allowing edit
-          unless Campaigns.verify_prize_ownership(prize.id, admin_id) do
-            raise Ecto.NoResultsError, queryable: Dobby.Campaigns.Prize
-          end
+    case mode do
+      "edit" ->
+        prize_id = Map.get(params, "prize_id") || Map.get(params, :prize_id)
 
-          # 如果奖品有 source_template_id，锁定模板字段
-          locked_fields =
-            if prize.source_template_id do
-              ["name", "description", "image_url", "prize_type", "redemption_guide"]
-            else
-              []
+        cond do
+          prize_id in [nil, ""] ->
+            {:noreply, put_flash(socket, :error, "無法開啟編輯：缺少獎品識別")}
+
+          true ->
+            admin_id = socket.assigns.current_admin.id
+            prize = Campaigns.get_prize!(prize_id)
+
+            unless Campaigns.verify_prize_ownership(prize.id, admin_id) do
+              raise Ecto.NoResultsError, queryable: Dobby.Campaigns.Prize
             end
 
-          {prize, "編輯獎品 · #{prize_name(prize)}", locked_fields}
+            locked_fields =
+              if prize.source_template_id do
+                ["name", "description", "image_url", "prize_type", "redemption_guide"]
+              else
+                []
+              end
 
-        _ ->
-          {%Prize{campaign_id: campaign.id}, "新增獎品", []}
-      end
+            title = "編輯獎品 · #{prize_name(prize)}"
+            changeset = Campaigns.change_prize(prize)
 
-    changeset = Campaigns.change_prize(prize)
+            {:noreply,
+             socket
+             |> set_prize_modal(%{
+               open?: true,
+               mode: mode,
+               title: title,
+               prize: prize,
+               form: to_form(changeset),
+               selected_template_id: prize.source_template_id,
+               template_locked_fields: locked_fields
+             })}
+        end
 
-    {:noreply,
-     socket
-     |> set_prize_modal(%{
-       open?: true,
-       mode: mode,
-       title: title,
-       prize: prize,
-       form: to_form(changeset),
-       selected_template_id: prize.source_template_id,
-       template_locked_fields: locked_fields
-     })}
+      _ ->
+        prize = %Prize{campaign_id: campaign.id}
+        changeset = Campaigns.change_prize(prize)
+
+        {:noreply,
+         socket
+         |> set_prize_modal(%{
+           open?: true,
+           mode: mode,
+           title: "新增獎品",
+           prize: prize,
+           form: to_form(changeset),
+           selected_template_id: prize.source_template_id,
+           template_locked_fields: []
+         })}
+    end
   end
 
   @impl true
@@ -629,18 +647,24 @@ defmodule DobbyWeb.Admin.CampaignLive.Index do
   def handle_event("mark_winner_status", %{"id" => id, "status" => status}, socket) do
     record = Enum.find(socket.assigns.winning_records, &(&1.id == id))
 
-    case Lottery.update_winning_record_status(record, status) do
-      {:ok, _} ->
-        winner_filter = socket.assigns[:winner_filter] || @default_winner_filter
+    cond do
+      is_nil(record) ->
+        {:noreply, put_flash(socket, :error, "找不到對應的獲獎記錄")}
 
-        socket =
-          reload_winning_records(socket, winner_filter)
-          |> put_flash(:info, "狀態已更新")
+      true ->
+        case Lottery.update_winning_record_status(record, status) do
+          {:ok, _} ->
+            winner_filter = socket.assigns[:winner_filter] || @default_winner_filter
 
-        {:noreply, socket}
+            socket =
+              reload_winning_records(socket, winner_filter)
+              |> put_flash(:info, "狀態已更新")
 
-      {:error, _} ->
-        {:noreply, put_flash(socket, :error, "更新失敗")}
+            {:noreply, socket}
+
+          {:error, _} ->
+            {:noreply, put_flash(socket, :error, "更新失敗")}
+        end
     end
   end
 
