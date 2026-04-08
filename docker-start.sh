@@ -60,7 +60,12 @@ REDIS_PORT=6379
 
 # Server Configuration
 PORT=4000
+# 宿主机映射到容器的应用端口（http://IP:APP_PUBLISH_PORT 直连 Phoenix，不经 Nginx）
+APP_PUBLISH_PORT=4000
+# Nginx 对外 HTTP 端口（http://IP:NGINX_HTTP_PORT 经反代，LiveView 建议主用此入口）
+NGINX_HTTP_PORT=80
 PHX_HOST=localhost
+PHX_PUBLIC_SCHEME=http
 PHX_SERVER=true
 
 # Secret Key (自动生成)
@@ -274,7 +279,9 @@ case "${1:-start}" in
     dc ps
     echo ""
     echo -e "${BLUE}🌐 访问地址：${NC}"
-    echo -e "   ${GREEN}http://localhost:${NGINX_HTTP_PORT:-80}${NC} （Nginx → web:4000）"
+    echo -e "   推荐（经 Nginx）: ${GREEN}http://localhost:${NGINX_HTTP_PORT:-80}${NC}"
+    echo -e "   直连应用（不经 Nginx）: ${GREEN}http://localhost:${APP_PUBLISH_PORT:-${PORT:-4000}}${NC}"
+    echo -e "   ${YELLOW}提示: LiveView 的 Origin 需与 .env 里 PHX_PUBLIC_PORT 一致；主用 Nginx 时请设为 NGINX_HTTP_PORT${NC}"
     echo ""
     echo -e "${BLUE}👤 管理员账号：${NC}"
     echo -e "   邮箱: ${GREEN}admin@dobby.com${NC}"

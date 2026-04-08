@@ -87,8 +87,9 @@ services:
       
       # Redis (optional)
       REDIS_URL: ${REDIS_URL:-redis://redis:6379}
-    expose:
-      - "4000"
+    ports:
+      # Host → Bandit（不经 Nginx）；对外正式访问仍建议走 nginx，端口见 NGINX_HTTP_PORT
+      - "${APP_PUBLISH_PORT:-4000}:${PORT:-4000}"
     volumes:
       - uploads_data:/app/priv/static/uploads
     command: >
