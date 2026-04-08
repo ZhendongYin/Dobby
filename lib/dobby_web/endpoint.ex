@@ -22,11 +22,12 @@ defmodule DobbyWeb.Endpoint do
     # stacks break LiveView behind proxies/WAF that block upgrades; longpoll shares
     # the same Origin/session strategy as websocket above.
     longpoll: [
-      # Phoenix 1.8+ forbids check_origin:false and check_csrf:false together on longpoll.
-      # :conn allows the Origin header to match the request Host (works behind Nginx + $http_host).
-      check_origin: :conn,
-      # Query-param CSRF + session cookie timing often fails on first longpoll poll → connect :error → 403.
-      check_csrf: false,
+      # Behind Nginx, conn.port is the upstream (e.g. 4000) while the browser Origin uses the
+      # public port (80). check_origin: :conn then rejects the request with 403. Keep origin
+      # checks off here like websocket; Phoenix 1.8+ still requires either non-false check_origin
+      # or check_csrf — use session-backed CSRF (query _csrf_token + _dobby_key cookie).
+      check_origin: false,
+      check_csrf: true,
       connect_info: [:peer_data, :user_agent, session: @session_options]
     ]
 
