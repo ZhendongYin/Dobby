@@ -290,7 +290,8 @@ defmodule DobbyWeb.Admin.CampaignLive.Index do
   end
 
   @impl true
-  def handle_event("open_prize_modal", %{"mode" => mode} = params, socket) do
+  def handle_event("open_prize_modal", params, socket) do
+    mode = Map.get(params, "mode", "new")
     campaign = socket.assigns.campaign
 
     {prize, title, locked_fields} =
