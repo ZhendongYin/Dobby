@@ -34,6 +34,20 @@ services:
     networks:
       - dobby_network
 
+  nginx:
+    image: nginx:1.27-alpine
+    container_name: dobby_nginx
+    depends_on:
+      web:
+        condition: service_healthy
+    ports:
+      - "${NGINX_HTTP_PORT:-80}:80"
+    volumes:
+      - ./docker/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+    networks:
+      - dobby_network
+    restart: unless-stopped
+
   web:
     build:
       context: .
@@ -49,9 +63,11 @@ services:
       DATABASE_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@db:5432/${POSTGRES_DB:-dobby_prod}
       POOL_SIZE: ${POOL_SIZE:-10}
       
-      # Server
+      # Server (Bandit listens on 4000 inside the stack; browsers use nginx)
       PORT: ${PORT:-4000}
       PHX_HOST: ${PHX_HOST:-localhost}
+      PHX_PUBLIC_SCHEME: ${PHX_PUBLIC_SCHEME:-http}
+      PHX_PUBLIC_PORT: ${NGINX_HTTP_PORT:-80}
       PHX_SERVER: "true"
       
       # Secrets (must be set in .env file)
@@ -71,8 +87,8 @@ services:
       
       # Redis (optional)
       REDIS_URL: ${REDIS_URL:-redis://redis:6379}
-    ports:
-      - "${PORT:-4000}:4000"
+    expose:
+      - "4000"
     volumes:
       - uploads_data:/app/priv/static/uploads
     command: >
@@ -83,8 +99,8 @@ services:
         done &&
         echo 'Running migrations...' &&
         ./bin/dobby eval 'Dobby.Release.migrate()' &&
-        echo 'Running seed data (creating admin and prize templates)...' &&
-        ./bin/dobby eval 'Dobby.Release.seed()' || echo 'Seed data already exists or failed' &&
+        echo 'Running seed data (admin, prizes, email templates, demo campaigns)...' &&
+        ./bin/dobby eval 'Dobby.Release.seed()' || echo 'Seed already applied or partial failure' &&
         echo 'Starting server...' &&
         ./bin/dobby start
       "

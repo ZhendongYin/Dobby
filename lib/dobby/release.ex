@@ -30,11 +30,9 @@ defmodule Dobby.Release do
     for repo <- repos() do
       {:ok, _, _} =
         Ecto.Migrator.with_repo(repo, fn _repo ->
-          # 创建管理员
           seed_admin()
-
-          # 创建奖品模板
           seed_prize_templates()
+          Dobby.Seeds.EmailTemplatesAndCampaigns.run()
         end)
     end
 

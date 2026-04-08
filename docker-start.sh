@@ -1,7 +1,16 @@
 #!/bin/bash
-# Docker 启动脚本
+# Docker 启动脚本：一条命令完成构建、启动、迁移与全套种子数据
 
 set -e
+
+# docker compose v2 或 docker-compose v1
+dc() {
+  if docker compose version >/dev/null 2>&1; then
+    docker compose "$@"
+  else
+    docker-compose "$@"
+  fi
+}
 
 # 颜色定义
 GREEN='\033[0;32m'
@@ -160,11 +169,19 @@ check_env_needed() {
 # 在执行命令前检查环境变量
 check_env_needed "${1:-start}"
 
+# 供脚本内 pg_isready / 提示使用（与 compose 注入 db 的用户一致）
+if [ -f .env ]; then
+  set -a
+  # shellcheck disable=SC1091
+  . ./.env
+  set +a
+fi
+
 # 选择操作
 case "${1:-start}" in
   start)
     echo -e "${GREEN}📦 构建 Docker 镜像...${NC}"
-    docker-compose build
+    dc build
     
     if [ $? -ne 0 ]; then
       echo -e "${RED}❌ 镜像构建失败${NC}"
@@ -172,7 +189,7 @@ case "${1:-start}" in
     fi
     
     echo -e "${GREEN}🚀 启动所有服务...${NC}"
-    docker-compose up -d
+    dc up -d
     
     if [ $? -ne 0 ]; then
       echo -e "${RED}❌ 服务启动失败${NC}"
@@ -183,7 +200,7 @@ case "${1:-start}" in
     max_attempts=30
     attempt=0
     while [ $attempt -lt $max_attempts ]; do
-      if docker-compose exec -T db pg_isready -U ${POSTGRES_USER:-postgres} > /dev/null 2>&1; then
+      if dc exec -T db pg_isready -U "${POSTGRES_USER:-postgres}" > /dev/null 2>&1; then
         echo -e "${GREEN}✅ 数据库已就绪${NC}"
         break
       fi
@@ -202,7 +219,7 @@ case "${1:-start}" in
     max_attempts=30
     attempt=0
     while [ $attempt -lt $max_attempts ]; do
-      if docker-compose ps web | grep -q "Up"; then
+      if dc ps web 2>/dev/null | grep -q "Up"; then
         echo -e "${GREEN}✅ 应用容器已启动${NC}"
         break
       fi
@@ -217,15 +234,15 @@ case "${1:-start}" in
     
     # 等待应用完全启动后再运行种子数据
     echo ""
-    echo -e "${GREEN}🌱 运行数据库种子数据...${NC}"
-    echo -e "${YELLOW}提示: 可以通过环境变量 ADMIN_PASSWORD 设置管理员密码${NC}"
+    echo -e "${GREEN}🌱 补跑数据库种子（web 容器启动时已跑过一遍；此处幂等补全）...${NC}"
+    echo -e "${YELLOW}提示: 可通过环境变量 ADMIN_PASSWORD 设置管理员密码${NC}"
     echo -e "${BLUE}   等待应用就绪...${NC}"
     max_attempts=20
     attempt=0
     app_ready=false
     
     while [ $attempt -lt $max_attempts ]; do
-      if docker-compose exec -T web ./bin/dobby eval "Application.ensure_all_started(:dobby)" > /dev/null 2>&1; then
+      if dc exec -T web ./bin/dobby eval "Application.ensure_all_started(:dobby)" > /dev/null 2>&1; then
         app_ready=true
         break
       fi
@@ -238,9 +255,9 @@ case "${1:-start}" in
       echo ""
       
       if [ -n "$ADMIN_PASSWORD" ]; then
-        docker-compose exec -T -e ADMIN_PASSWORD="$ADMIN_PASSWORD" web ./bin/dobby eval "Dobby.Release.seed()" 2>&1 || echo -e "${YELLOW}   ⚠️  种子数据可能已存在${NC}"
+        dc exec -T -e ADMIN_PASSWORD="$ADMIN_PASSWORD" web ./bin/dobby eval "Dobby.Release.seed()" 2>&1 || echo -e "${YELLOW}   ⚠️  种子已应用或部分跳过（可忽略）${NC}"
       else
-        docker-compose exec -T web ./bin/dobby eval "Dobby.Release.seed()" 2>&1 || echo -e "${YELLOW}   ⚠️  种子数据可能已存在${NC}"
+        dc exec -T web ./bin/dobby eval "Dobby.Release.seed()" 2>&1 || echo -e "${YELLOW}   ⚠️  种子已应用或部分跳过（可忽略）${NC}"
       fi
     else
       echo ""
@@ -254,10 +271,10 @@ case "${1:-start}" in
     echo -e "${GREEN}════════════════════════════════════════${NC}"
     echo ""
     echo -e "${BLUE}📋 服务状态：${NC}"
-    docker-compose ps
+    dc ps
     echo ""
     echo -e "${BLUE}🌐 访问地址：${NC}"
-    echo -e "   Web 应用: ${GREEN}http://localhost:${PORT:-4000}${NC}"
+    echo -e "   ${GREEN}http://localhost:${NGINX_HTTP_PORT:-80}${NC} （Nginx → web:4000）"
     echo ""
     echo -e "${BLUE}👤 管理员账号：${NC}"
     echo -e "   邮箱: ${GREEN}admin@dobby.com${NC}"
@@ -272,27 +289,27 @@ case "${1:-start}" in
     echo -e "${BLUE}📋 查看实时日志：${NC}"
     echo -e "${YELLOW}按 Ctrl+C 退出日志查看${NC}"
     echo ""
-    docker-compose logs -f web
+    dc logs -f web
     ;;
     
   stop)
     echo -e "${YELLOW}⏹️  停止服务...${NC}"
-    docker-compose down
+    dc down
     ;;
     
   restart)
     echo -e "${YELLOW}🔄 重启服务...${NC}"
-    docker-compose restart
+    dc restart
     ;;
     
   logs)
     echo -e "${GREEN}📋 查看日志...${NC}"
-    docker-compose logs -f "${2:-web}"
+    dc logs -f "${2:-web}"
     ;;
     
   build)
     echo -e "${GREEN}📦 构建 Docker 镜像...${NC}"
-    docker-compose build --no-cache
+    dc build --no-cache
     ;;
     
   clean)
@@ -300,7 +317,7 @@ case "${1:-start}" in
     read -p "这将删除所有数据！确认继续? (y/N) " -n 1 -r
     echo
     if [[ $REPLY =~ ^[Yy]$ ]]; then
-      docker-compose down -v
+      dc down -v
       echo -e "${GREEN}✅ 清理完成${NC}"
     else
       echo "已取消"
@@ -309,22 +326,22 @@ case "${1:-start}" in
     
   migrate)
     echo -e "${GREEN}🔄 运行数据库迁移...${NC}"
-    docker-compose exec web ./bin/dobby eval "Dobby.Release.migrate()"
+    dc exec web ./bin/dobby eval "Dobby.Release.migrate()"
     ;;
     
   seed)
-    echo -e "${GREEN}🌱 运行数据库种子数据...${NC}"
-    echo -e "${YELLOW}提示: 可以通过环境变量 ADMIN_PASSWORD 设置管理员密码${NC}"
+    echo -e "${GREEN}🌱 运行数据库种子数据（管理员、奖品模板、邮件模板、示範活動）...${NC}"
+    echo -e "${YELLOW}提示: 可通过环境变量 ADMIN_PASSWORD 设置管理员密码${NC}"
     if [ -n "$ADMIN_PASSWORD" ]; then
-      docker-compose exec -e ADMIN_PASSWORD="$ADMIN_PASSWORD" web ./bin/dobby eval "Dobby.Release.seed()"
+      dc exec -e ADMIN_PASSWORD="$ADMIN_PASSWORD" web ./bin/dobby eval "Dobby.Release.seed()"
     else
-      docker-compose exec web ./bin/dobby eval "Dobby.Release.seed()"
+      dc exec web ./bin/dobby eval "Dobby.Release.seed()"
     fi
     ;;
     
   shell)
     echo -e "${GREEN}🐚 进入容器...${NC}"
-    docker-compose exec web sh
+    dc exec web sh
     ;;
     
   env)
@@ -341,14 +358,14 @@ case "${1:-start}" in
     echo "用法: $0 {start|stop|restart|logs|build|clean|migrate|seed|shell|env}"
     echo ""
     echo "命令:"
-    echo "  start    - 一键部署：构建镜像、启动服务、运行迁移和种子数据 (默认)"
+    echo "  start    - 一键：构建、启动、迁移、全套种子（管理員/獎品/郵件模板/示範活動）(默认)"
     echo "  stop     - 停止所有服务"
     echo "  restart  - 重启所有服务"
     echo "  logs     - 查看日志 (可以指定服务名，如: logs db)"
     echo "  build    - 重新构建镜像"
     echo "  clean    - 停止服务并删除数据卷"
     echo "  migrate  - 运行数据库迁移"
-    echo "  seed     - 运行数据库种子数据（创建默认管理员和奖品模板）"
+    echo "  seed     - 幂等种子：管理員、獎品模板、郵件模板、示範活動（30 天）"
     echo "  shell    - 进入应用容器"
     echo "  env      - 显示当前环境变量配置（敏感信息已隐藏）"
     exit 1

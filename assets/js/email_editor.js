@@ -160,11 +160,9 @@ export const EmailEditor = {
           textInput.value = text
         }
 
-        // Trigger input event for form validation
-        htmlInput.dispatchEvent(new Event("input", { bubbles: true }))
-        if (textInput) {
-          textInput.dispatchEvent(new Event("input", { bubbles: true }))
-        }
+        // Do not dispatch input on the form: phx-change would re-render the LiveView
+        // on every keystroke, run hook updated(), and break Quill if HTML strings differ
+        // after Quill normalizes content. Hidden fields still hold the latest value for submit.
 
         // Push to LiveView (debounced)
         if (this.updateTimeout) {
@@ -186,10 +184,11 @@ export const EmailEditor = {
         this.quill.setSelection(range.index + variableText.length, "user")
         this.quill.focus()
 
-        // Trigger text-change manually
         const html = this.quill.root.innerHTML
         htmlInput.value = html
-        htmlInput.dispatchEvent(new Event("input", { bubbles: true }))
+        if (textInput) {
+          textInput.value = this.quill.getText()
+        }
         this.pushEvent("editor-update", { html_content: html })
       })
 
@@ -212,34 +211,9 @@ export const EmailEditor = {
   },
 
   updated() {
-    // Only sync if content changed externally (not from user input)
-    if (!this.quill || !this.htmlInput) return
-
-    const currentHtml = this.quill.root.innerHTML.trim()
-    const inputValue = (this.htmlInput.value || "").trim()
-
-    // Only update if significantly different and not from user typing
-    if (inputValue && 
-        inputValue !== currentHtml && 
-        inputValue.length > 0 &&
-        !this.isUserTyping) {
-      
-      const selection = this.quill.getSelection(true)
-      this.quill.root.innerHTML = inputValue
-      
-      if (selection) {
-        try {
-          const length = this.quill.getLength()
-          const index = Math.min(selection.index, length - 1)
-          this.quill.setSelection(index, "user")
-        } catch (e) {
-          this.quill.focus()
-        }
-      }
-    }
-
-    // Reset typing flag
-    this.isUserTyping = false
+    // Container uses phx-update="ignore"; content is owned by Quill.
+    // Never assign quill.root.innerHTML here: Quill normalizes HTML, so it would almost
+    // always differ from the hidden input's string and corrupt the editor model.
   },
 
   destroyed() {

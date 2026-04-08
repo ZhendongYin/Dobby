@@ -53,10 +53,23 @@ if config_env() == :prod do
   host = System.get_env("PHX_HOST") || "example.com"
   port = String.to_integer(System.get_env("PORT") || "4000")
 
+  # Public URL (scheme/port) for generated links and WebSocket check_origin when
+  # behind a reverse proxy (e.g. Docker Compose nginx). Defaults keep HTTPS on 443.
+  public_scheme = System.get_env("PHX_PUBLIC_SCHEME") || "https"
+
+  public_port =
+    case System.get_env("PHX_PUBLIC_PORT") do
+      nil ->
+        if public_scheme == "https", do: 443, else: 80
+
+      p ->
+        String.to_integer(p)
+    end
+
   config :dobby, :dns_cluster_query, System.get_env("DNS_CLUSTER_QUERY")
 
   config :dobby, DobbyWeb.Endpoint,
-    url: [host: host, port: 443, scheme: "https"],
+    url: [host: host, port: public_port, scheme: public_scheme],
     http: [
       # Enable IPv6 and bind on all interfaces.
       # Set it to  {0, 0, 0, 0, 0, 0, 0, 1} for local network only access.
